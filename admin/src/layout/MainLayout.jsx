@@ -17,7 +17,7 @@ const MENU_GROUPS = [
   {
     title: '运营',
     items: [
-      { key: '/customer-service', icon: '💬', label: '客服管理', badge: 3 },
+      { key: '/service', icon: '💬', label: '客服管理', badge: 3 },
       { key: '/competitors', icon: '🔍', label: '竞品分析', badge: 2 },
     ]
   },

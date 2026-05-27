@@ -5,6 +5,7 @@
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { generateCompetitors, PLATFORMS } from '../../utils/mock';
+import './Competitors.css';
 
 const PRICE_RULES = [
   { id: 1, name: '低价跟随策略', desc: '竞品降价时，我方自动跟进降价5%', condition: '竞品价 < 我方价', action: '设为竞品价 × 0.95', enabled: true },

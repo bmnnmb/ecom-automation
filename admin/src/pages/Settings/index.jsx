@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import { DEFAULT_SETTINGS, PLATFORMS } from '../../utils/mock';
+import '../Competitors/Competitors.css';
 
 export default function Settings() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);

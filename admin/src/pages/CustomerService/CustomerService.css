@@ -1,0 +1,860 @@
+/* CustomerService - 客服中心 */
+
+.cs-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 48px);
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.cs-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cs-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cs-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d2129;
+  margin: 0;
+}
+
+.cs-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.cs-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cs-stat-num {
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.cs-stat.waiting .cs-stat-num {
+  color: #FF7D00;
+}
+
+.cs-stat.processing .cs-stat-num {
+  color: #165DFF;
+}
+
+.cs-ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: #f5f7fa;
+  cursor: pointer;
+  font-size: 13px;
+  color: #595959;
+  user-select: none;
+}
+
+.cs-ai-toggle:hover {
+  background: #e8f3ff;
+}
+
+.cs-ai-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c9cdd4;
+  transition: background 0.2s;
+}
+
+.cs-ai-dot.active {
+  background: #00B42A;
+  box-shadow: 0 0 4px rgba(0, 180, 42, 0.4);
+}
+
+.cs-ai-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7B61FF, #165DFF);
+  color: #fff;
+  font-weight: 500;
+}
+
+.cs-btn-icon {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.cs-btn-icon:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+/* 主体三栏布局 */
+.cs-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 左侧会话列表 */
+.cs-sidebar {
+  width: 280px;
+  min-width: 280px;
+  border-right: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+}
+
+.cs-search {
+  position: relative;
+  padding: 12px;
+}
+
+.cs-search-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #c9cdd4;
+}
+
+.cs-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 32px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.cs-search-input:focus {
+  border-color: #165DFF;
+}
+
+.cs-search-clear {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #c9cdd4;
+  font-size: 12px;
+}
+
+.cs-search-clear:hover {
+  color: #8c8c8c;
+}
+
+.cs-filter-tabs {
+  display: flex;
+  padding: 0 12px;
+  gap: 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.cs-filter-tab {
+  flex: 1;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: #8c8c8c;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.cs-filter-tab:hover {
+  color: #165DFF;
+}
+
+.cs-filter-tab.active {
+  color: #165DFF;
+  border-bottom-color: #165DFF;
+  font-weight: 500;
+}
+
+.cs-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #F53F3F;
+  color: #fff;
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+.cs-conversation-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cs-conversation-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background 0.15s;
+}
+
+.cs-conversation-item:hover {
+  background: #f0f5ff;
+}
+
+.cs-conversation-item.active {
+  background: #e8f3ff;
+}
+
+.cs-conversation-item.unread .cs-conv-name {
+  font-weight: 600;
+}
+
+.cs-conv-avatar {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.cs-conv-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.cs-conv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.cs-conv-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d2129;
+}
+
+.cs-conv-time {
+  font-size: 11px;
+  color: #c9cdd4;
+}
+
+.cs-conv-preview {
+  font-size: 12px;
+  color: #8c8c8c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.cs-conv-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cs-conv-status {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.cs-conv-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #F53F3F;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.cs-empty {
+  padding: 40px;
+  text-align: center;
+  color: #c9cdd4;
+  font-size: 13px;
+}
+
+/* 中间聊天区 */
+.cs-chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cs-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.cs-chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cs-chat-header-right {
+  display: flex;
+  gap: 8px;
+}
+
+.cs-chat-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.cs-chat-platform {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.cs-btn-default {
+  padding: 4px 10px;
+  border: 1px solid #e5e6eb;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  color: #595959;
+  transition: all 0.2s;
+}
+
+.cs-btn-default:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.cs-btn-primary {
+  padding: 4px 10px;
+  border: 1px solid #165DFF;
+  border-radius: 4px;
+  background: #165DFF;
+  cursor: pointer;
+  font-size: 12px;
+  color: #fff;
+  transition: all 0.2s;
+}
+
+.cs-btn-primary:hover {
+  background: #4080FF;
+  border-color: #4080FF;
+}
+
+/* 消息区 */
+.cs-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: #f5f7fa;
+}
+
+.cs-date-divider {
+  text-align: center;
+  margin: 12px 0;
+  font-size: 12px;
+  color: #c9cdd4;
+}
+
+.cs-date-divider span {
+  background: #f5f7fa;
+  padding: 0 12px;
+  position: relative;
+}
+
+.cs-message-row {
+  margin-bottom: 12px;
+  display: flex;
+}
+
+.cs-message-row.customer {
+  justify-content: flex-start;
+}
+
+.cs-message-row.agent {
+  justify-content: flex-end;
+}
+
+.cs-bubble {
+  max-width: 70%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cs-bubble.customer {
+  background: #fff;
+  color: #1d2129;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.cs-bubble.agent {
+  background: #165DFF;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.cs-bubble-content {
+  word-break: break-word;
+}
+
+.cs-bubble-time {
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.6;
+}
+
+/* 快捷回复 */
+.cs-quick-reply {
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.cs-quick-tabs {
+  display: flex;
+  padding: 6px 12px;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.cs-quick-tab {
+  padding: 4px 10px;
+  border: 1px solid #e5e6eb;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  color: #595959;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.cs-quick-tab:hover,
+.cs-quick-tab.active {
+  border-color: #165DFF;
+  color: #165DFF;
+  background: #e8f3ff;
+}
+
+.cs-quick-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid #f5f5f5;
+}
+
+.cs-quick-item {
+  padding: 6px 10px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #595959;
+  cursor: pointer;
+  transition: all 0.2s;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-quick-item:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+  background: #f0f5ff;
+}
+
+/* 输入区 */
+.cs-input-area {
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.cs-input-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+}
+
+.cs-tool-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cs-tool-btn:hover {
+  background: #f5f7fa;
+}
+
+.cs-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  font-family: inherit;
+}
+
+.cs-input::placeholder {
+  color: #c9cdd4;
+}
+
+.cs-input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+}
+
+.cs-input-hint {
+  font-size: 11px;
+  color: #c9cdd4;
+}
+
+.cs-btn-send {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #165DFF;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.cs-btn-send:hover {
+  background: #4080FF;
+}
+
+.cs-btn-send:disabled {
+  background: #c9cdd4;
+  cursor: not-allowed;
+}
+
+/* 聊天空状态 */
+.cs-chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #c9cdd4;
+}
+
+.cs-chat-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.cs-chat-empty-text {
+  font-size: 14px;
+}
+
+/* 右侧买家信息面板 */
+.cs-buyer-panel {
+  width: 260px;
+  min-width: 260px;
+  border-left: 1px solid #f0f0f0;
+  overflow-y: auto;
+  background: #fff;
+  padding: 16px;
+}
+
+.cs-buyer-card {
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 12px;
+}
+
+.cs-buyer-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin: 0 auto 8px;
+}
+
+.cs-buyer-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d2129;
+  margin-bottom: 4px;
+}
+
+.cs-buyer-level {
+  font-size: 13px;
+  color: #FF7D00;
+  margin-bottom: 8px;
+}
+
+.cs-buyer-stats {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.cs-buyer-stat {
+  text-align: center;
+}
+
+.cs-buyer-stat-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d2129;
+}
+
+.cs-buyer-stat-label {
+  font-size: 11px;
+  color: #8c8c8c;
+  margin-top: 2px;
+}
+
+.cs-buyer-section {
+  margin-bottom: 12px;
+}
+
+.cs-buyer-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d2129;
+  margin-bottom: 8px;
+}
+
+.cs-buyer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cs-buyer-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e8f3ff;
+  color: #165DFF;
+  font-size: 12px;
+}
+
+.cs-buyer-info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.cs-buyer-info-label {
+  color: #8c8c8c;
+}
+
+.cs-buyer-info-value {
+  color: #1d2129;
+}
+
+.cs-buyer-order {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.cs-buyer-order-id {
+  font-size: 12px;
+  color: #595959;
+}
+
+.cs-buyer-order-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8f3ff;
+  color: #165DFF;
+}
+
+.cs-ai-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cs-ai-suggestion {
+  padding: 8px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cs-ai-suggestion:hover {
+  border-color: #165DFF;
+  background: #f0f5ff;
+}
+
+.cs-ai-suggestion-text {
+  font-size: 12px;
+  color: #1d2129;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.cs-ai-suggestion-score {
+  height: 4px;
+  background: #f0f0f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cs-ai-score-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #165DFF, #7B61FF);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.cs-buyer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cs-btn-block {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #165DFF;
+  border-radius: 6px;
+  background: #165DFF;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.cs-btn-block:hover {
+  background: #4080FF;
+  border-color: #4080FF;
+}
+
+.cs-btn-block.secondary {
+  background: #fff;
+  color: #165DFF;
+}
+
+.cs-btn-block.secondary:hover {
+  background: #f0f5ff;
+}
+
+.cs-buyer-empty {
+  text-align: center;
+  color: #c9cdd4;
+  padding: 40px 0;
+  font-size: 13px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1024px) {
+  .cs-buyer-panel {
+    display: none;
+  }
+  .cs-sidebar {
+    width: 240px;
+    min-width: 240px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cs-main {
+    flex-direction: column;
+  }
+  .cs-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .cs-buyer-panel {
+    display: none;
+  }
+  .cs-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+}

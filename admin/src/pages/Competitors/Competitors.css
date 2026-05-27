@@ -1,0 +1,309 @@
+/* Competitors - 竞品分析 + Settings/Shared Custom Components */
+
+/* ===== CSS Custom Properties ===== */
+:root {
+  --primary: #165DFF;
+  --primary-light: #E8F3FF;
+  --success: #00B42A;
+  --danger: #F53F3F;
+  --warning: #FF7D00;
+  --border: #E5E6EB;
+  --bg-2: #F5F7FA;
+  --bg-3: #FAFBFC;
+  --text-2: #595959;
+  --text-3: #8C8C8C;
+  --text-4: #BFBFBF;
+  --spacing-sm: 8px;
+  --spacing-lg: 24px;
+}
+
+/* ===== Page Header ===== */
+.page-header {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-header h2,
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d2129;
+  margin: 0;
+}
+
+.page-desc {
+  font-size: 13px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+/* ===== Card (custom, not Ant) ===== */
+.card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: none;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.card-body {
+  padding: 16px;
+}
+
+/* ===== Stat Cards ===== */
+.stats-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.stat-card-title {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-bottom: 6px;
+}
+
+.stat-card-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1d2129;
+}
+
+/* ===== Buttons (custom, not Ant) ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #e5e6eb;
+  background: #fff;
+  color: #595959;
+  transition: all 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.btn:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.btn-primary {
+  background: #165DFF;
+  color: #fff;
+  border-color: #165DFF;
+}
+
+.btn-primary:hover {
+  background: #4080FF;
+  border-color: #4080FF;
+  color: #fff;
+}
+
+.btn-default {
+  background: #fff;
+  color: #595959;
+  border-color: #e5e6eb;
+}
+
+.btn-default:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.btn-text {
+  background: transparent;
+  border: none;
+  color: #165DFF;
+  padding: 4px 8px;
+}
+
+.btn-text:hover {
+  color: #4080FF;
+  background: #f0f5ff;
+}
+
+.btn-sm {
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+/* ===== Tag (custom, not Ant) ===== */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tag-orange {
+  background: #FFF7E6;
+  color: #FF7D00;
+}
+
+/* ===== Switch (custom, not Ant) ===== */
+.switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #c9cdd4;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.switch.on {
+  background: #165DFF;
+}
+
+.switch.on::after {
+  transform: translateX(16px);
+}
+
+/* ===== Data Table (custom, not Ant) ===== */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #595959;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid #f0f0f0;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f5f5f5;
+  color: #262626;
+}
+
+.data-table tr:hover td {
+  background: #f5f7fa;
+}
+
+/* ===== Filter Bar ===== */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  padding: 6px 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  min-width: 200px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.filter-input:focus {
+  border-color: #165DFF;
+}
+
+.filter-select {
+  padding: 6px 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.filter-select:focus {
+  border-color: #165DFF;
+}
+
+/* ===== Form Elements (for Settings) ===== */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d2129;
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  background: #fff;
+}
+
+.form-input:focus {
+  border-color: #165DFF;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #c9cdd4;
+  margin-top: 4px;
+}

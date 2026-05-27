@@ -5,6 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { generateConversations, PLATFORMS } from '../../utils/mock';
+import './CustomerService.css';
 
 // 状态配置
 const STATUS_MAP = {
