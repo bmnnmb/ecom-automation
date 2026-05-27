@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from models import KuaishouConfig, ApiResponse
 from auth import init_auth_manager
 from kuaishou_client import init_kuaishou_client
+from token_scheduler import init_token_scheduler, get_token_scheduler
 from routes import products, orders, inventory, logistics
 
 # 加载环境变量
@@ -38,7 +39,11 @@ async def lifespan(app: FastAPI):
             # 初始化快手客户端
             init_kuaishou_client(auth_manager)
             
-            logger.info("快手Adapter服务初始化完成")
+            # 启动Token自动刷新调度器
+            scheduler = init_token_scheduler(auth_manager)
+            await scheduler.start()
+            
+            logger.info("快手Adapter服务初始化完成（含Token自动刷新调度器）")
         
     except Exception as e:
         logger.error(f"初始化失败: {e}")
@@ -47,6 +52,11 @@ async def lifespan(app: FastAPI):
     
     # 关闭时清理
     logger.info("关闭快手Adapter服务...")
+    
+    # 停止Token调度器
+    scheduler = get_token_scheduler()
+    if scheduler:
+        await scheduler.stop()
 
 
 # 创建FastAPI应用
@@ -159,6 +169,51 @@ async def refresh_token():
     except Exception as e:
         logger.error(f"刷新token失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/auth/token-status")
+async def get_token_status():
+    """获取Token调度器状态
+    
+    Returns:
+        Token调度器的运行状态和统计信息
+    """
+    scheduler = get_token_scheduler()
+    if not scheduler:
+        return ApiResponse(
+            code=0,
+            message="调度器未初始化",
+            data={"running": False}
+        )
+    
+    return ApiResponse(
+        code=0,
+        message="success",
+        data=scheduler.get_status()
+    )
+
+
+@app.post("/auth/force-refresh")
+async def force_refresh_token():
+    """强制刷新token（通过调度器）
+    
+    Returns:
+        刷新结果
+    """
+    scheduler = get_token_scheduler()
+    if not scheduler:
+        raise HTTPException(status_code=500, detail="调度器未初始化")
+    
+    success = await scheduler.force_refresh()
+    
+    return ApiResponse(
+        code=0,
+        message="刷新成功" if success else "刷新失败",
+        data={
+            "success": success,
+            "scheduler_status": scheduler.get_status()
+        }
+    )
 
 
 if __name__ == "__main__":

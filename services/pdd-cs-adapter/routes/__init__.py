@@ -8,6 +8,8 @@ try:
     from .chat_routes import router as chat_router
     from .knowledge_routes import router as knowledge_router
     from .system_routes import router as system_router
+    from .product_routes import router as product_router
+    from .order_routes import router as order_router
 except ImportError:
     # 当直接运行时
     import sys
@@ -16,6 +18,8 @@ except ImportError:
     from chat_routes import router as chat_router
     from knowledge_routes import router as knowledge_router
     from system_routes import router as system_router
+    from product_routes import router as product_router
+    from order_routes import router as order_router
 
 router = APIRouter()
 
@@ -23,3 +27,5 @@ router = APIRouter()
 router.include_router(chat_router, prefix="/chat", tags=["chat"])
 router.include_router(knowledge_router, prefix="/knowledge", tags=["knowledge"])
 router.include_router(system_router, prefix="/system", tags=["system"])
+router.include_router(product_router, prefix="/products", tags=["商品管理"])
+router.include_router(order_router, prefix="/orders", tags=["订单管理"])
