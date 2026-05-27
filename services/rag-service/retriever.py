@@ -1,6 +1,7 @@
 """
 向量检索模块
 使用sentence-transformers进行文本向量化，faiss进行相似度检索
+集成查询缓存提升性能
 """
 import os
 import pickle
@@ -11,6 +12,7 @@ import faiss
 from loguru import logger
 
 from knowledge_base import KnowledgeItem, knowledge_base
+from query_cache import get_query_cache, QueryCache
 
 class VectorRetriever:
     """向量检索器"""
@@ -28,6 +30,7 @@ class VectorRetriever:
         self.model = None
         self.indexes: Dict[str, faiss.IndexFlatIP] = {}
         self.item_mappings: Dict[str, Dict[int, KnowledgeItem]] = {}
+        self.cache: QueryCache = get_query_cache()
         
         os.makedirs(index_dir, exist_ok=True)
         self._load_model()
@@ -128,7 +131,7 @@ class VectorRetriever:
     
     def search(self, domain: str, query: str, top_k: int = 5) -> List[Dict]:
         """
-        在指定领域中搜索相关文档
+        在指定领域中搜索相关文档（带缓存）
         
         Args:
             domain: 知识领域
@@ -144,6 +147,12 @@ class VectorRetriever:
         
         if not query.strip():
             return []
+        
+        # 检查缓存
+        cached_results = self.cache.get(domain, query, top_k)
+        if cached_results is not None:
+            logger.debug(f"Cache hit for query: {query[:50]}...")
+            return cached_results
         
         try:
             # 编码查询文本
@@ -165,6 +174,9 @@ class VectorRetriever:
                         "item": item.dict(),
                         "matched_text": f"{item.question} {item.answer}"
                     })
+            
+            # 存入缓存
+            self.cache.set(domain, query, top_k, results)
             
             return results
             
@@ -221,12 +233,13 @@ class VectorRetriever:
         return self.search(domain, target_item.question, top_k + 1)[1:]  # 排除自己
     
     def get_stats(self) -> Dict[str, any]:
-        """获取检索器统计信息"""
+        """获取检索器统计信息（包含缓存统计）"""
         stats = {
             "model_name": self.model_name,
             "indexed_domains": list(self.indexes.keys()),
             "total_vectors": sum(index.ntotal for index in self.indexes.values()),
-            "index_files": []
+            "index_files": [],
+            "cache": self.cache.get_stats()
         }
         
         # 检查索引文件

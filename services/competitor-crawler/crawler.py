@@ -1,6 +1,7 @@
 """
 核心爬虫模块
 支持抖音/快手/拼多多/闲鱼
+集成反爬虫策略：限速、代理轮换、UA管理、CAPTCHA检测
 """
 import asyncio
 import hashlib
@@ -21,6 +22,7 @@ from fake_useragent import UserAgent
 from retry import retry
 
 from storage import Platform, ProductSnapshot
+from anti_crawler import get_anti_crawler, AntiCrawlerManager
 
 
 @dataclass
@@ -33,13 +35,15 @@ class CrawlResult:
 
 
 class BaseCrawler(ABC):
-    """爬虫基类"""
+    """爬虫基类 - 集成反爬策略"""
     
-    def __init__(self):
+    def __init__(self, anti_crawler: Optional[AntiCrawlerManager] = None):
         self.ua = UserAgent()
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
         self.http_client: Optional[httpx.AsyncClient] = None
+        self.anti_crawler = anti_crawler or get_anti_crawler()
+        self._proxy: Optional[str] = None
         
     async def __aenter__(self):
         await self.start()
@@ -49,42 +53,89 @@ class BaseCrawler(ABC):
         await self.stop()
     
     async def start(self):
-        """初始化浏览器和HTTP客户端"""
+        """初始化浏览器和HTTP客户端 - 应用反爬策略"""
         try:
+            # 获取反爬配置
+            request_config = await self.anti_crawler.prepare_request()
+            ua = request_config["user_agent"]
+            self._proxy = request_config["proxy"]
+            
             playwright = await async_playwright().start()
-            self.browser = await playwright.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-blink-features=AutomationControlled'
-                ]
-            )
+            
+            # 配置启动参数
+            launch_args = [
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-infobars',
+                '--window-size=1920,1080',
+            ]
+            
+            launch_kwargs = {
+                'headless': True,
+                'args': launch_args,
+            }
+            
+            # 如果有代理，添加代理配置
+            if self._proxy:
+                launch_kwargs['proxy'] = {'server': self._proxy}
+            
+            self.browser = await playwright.chromium.launch(**launch_kwargs)
             
             context = await self.browser.new_context(
-                user_agent=self.ua.random,
+                user_agent=ua,
                 viewport={'width': 1920, 'height': 1080},
                 locale='zh-CN',
-                timezone_id='Asia/Shanghai'
+                timezone_id='Asia/Shanghai',
+                # 模拟真实浏览器特征
+                extra_http_headers={
+                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                }
             )
             
-            # 添加反检测脚本
+            # 添加反检测脚本 - 更全面的伪装
             await context.add_init_script("""
+                // 隐藏webdriver特征
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-                Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'en']});
+                
+                // 伪装plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => {
+                        const plugins = [
+                            {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'},
+                            {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'},
+                            {name: 'Native Client', filename: 'internal-nacl-plugin'}
+                        ];
+                        plugins.length = 3;
+                        return plugins;
+                    }
+                });
+                
+                // 伪装languages
+                Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
+                
+                // 隐藏自动化工具特征
+                window.chrome = { runtime: {} };
+                
+                // 伪装permissions
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+                );
             """)
             
             self.page = await context.new_page()
             
-            # HTTP客户端
+            # HTTP客户端 - 使用反爬配置的headers
             self.http_client = httpx.AsyncClient(
                 timeout=30.0,
                 follow_redirects=True,
-                headers={'User-Agent': self.ua.random}
+                headers=request_config["headers"],
             )
             
-            logger.info(f"{self.__class__.__name__} initialized")
+            logger.info(f"{self.__class__.__name__} initialized (proxy: {self._proxy or 'none'})")
             
         except Exception as e:
             logger.error(f"Failed to initialize crawler: {e}")
@@ -99,8 +150,12 @@ class BaseCrawler(ABC):
                 await self.browser.close()
             if self.http_client:
                 await self.http_client.aclose()
+            
+            # 报告成功（如果没有异常）
+            self.anti_crawler.report_success(self._proxy)
             logger.info(f"{self.__class__.__name__} stopped")
         except Exception as e:
+            self.anti_crawler.report_failure(self._proxy)
             logger.error(f"Error stopping crawler: {e}")
     
     async def take_screenshot(self, url: str) -> Optional[str]:

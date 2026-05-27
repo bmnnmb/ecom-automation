@@ -19,6 +19,7 @@ from scheduler import (
 )
 from crawler import crawl_product, batch_crawl
 from analyzer import DataAnalyzer
+from anti_crawler import get_anti_crawler, AntiCrawlerManager
 
 
 # 配置日志
@@ -513,10 +514,26 @@ async def get_stats():
     """获取服务统计"""
     try:
         scheduler = await get_scheduler()
-        return scheduler.get_stats()
+        anti_crawler = get_anti_crawler()
+        
+        return {
+            "scheduler": scheduler.get_stats(),
+            "anti_crawler": anti_crawler.get_stats()
+        }
         
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/anti-crawler/stats")
+async def get_anti_crawler_stats():
+    """获取反爬虫策略统计"""
+    try:
+        anti_crawler = get_anti_crawler()
+        return anti_crawler.get_stats()
+    except Exception as e:
+        logger.error(f"Failed to get anti-crawler stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

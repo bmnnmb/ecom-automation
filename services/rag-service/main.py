@@ -5,6 +5,7 @@ RAG知识库服务 - FastAPI主入口
 import os
 import time
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,6 +15,7 @@ import sys
 from routes import rag_router
 from knowledge_base import knowledge_base
 from retriever import retriever
+from query_cache import get_query_cache
 
 # 配置日志
 logger.remove()
@@ -120,7 +122,9 @@ async def root():
             "query_all": "/rag/query/all?query=xxx",
             "knowledge": "/rag/knowledge/{domain}",
             "domains": "/rag/domains",
-            "stats": "/rag/stats"
+            "stats": "/rag/stats",
+            "cache_stats": "/cache/stats",
+            "cache_invalidate": "/cache/invalidate"
         }
     }
 
@@ -135,6 +139,10 @@ async def health_check():
         # 检查检索器状态
         retriever_stats = retriever.get_stats()
         
+        # 获取缓存状态
+        cache = get_query_cache()
+        cache_stats = cache.get_stats()
+        
         return {
             "status": "healthy",
             "timestamp": time.time(),
@@ -142,7 +150,8 @@ async def health_check():
             "retriever": {
                 "indexed_domains": retriever_stats["indexed_domains"],
                 "total_vectors": retriever_stats["total_vectors"]
-            }
+            },
+            "cache": cache_stats
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -152,6 +161,35 @@ async def health_check():
                 "status": "unhealthy",
                 "error": str(e)
             }
+        )
+
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """获取查询缓存统计"""
+    try:
+        cache = get_query_cache()
+        return cache.get_stats()
+    except Exception as e:
+        logger.error(f"Failed to get cache stats: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post("/cache/invalidate")
+async def invalidate_cache(domain: Optional[str] = None):
+    """使缓存失效"""
+    try:
+        cache = get_query_cache()
+        cache.invalidate(domain)
+        return {"status": "success", "message": "Cache invalidated"}
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
         )
 
 # 启动信息
