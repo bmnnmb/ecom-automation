@@ -38,8 +38,19 @@ class ErrorResponse(BaseModel):
 
 
 def error_response(code: int, message: str, data: Optional[Any] = None) -> JSONResponse:
+    """构造错误响应，HTTP状态码根据错误码自动映射"""
+    # 业务错误码映射到合适的HTTP状态码
+    status_map = {
+        400: 400,   # 参数错误
+        401: 401,   # 认证失败
+        403: 403,   # 权限不足
+        404: 404,   # 资源不存在
+        422: 422,   # 验证失败
+        500: 500,   # 内部错误
+    }
+    http_status = status_map.get(code, 500)
     return JSONResponse(
-        status_code=200,
+        status_code=http_status,
         content=ErrorResponse(code=code, message=message, data=data).model_dump()
     )
 
