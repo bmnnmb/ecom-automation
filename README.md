@@ -75,6 +75,33 @@ docker-compose up -d
 - [ ] 多店铺路由
 - [ ] 管理后台和BI看板
 
+## API 文档
+
+系统包含 4 个 FastAPI 微服务，共计 50+ 个 REST API 端点。
+
+| 服务 | 端口 | 说明 | 交互式文档 |
+|------|------|------|-----------|
+| API Gateway | 8001 | 统一 API 网关 | `http://localhost:8001/docs` |
+| Hermes 总控 | 8080 | 任务调度/技能执行/报表 | `http://localhost:8080/docs` |
+| 竞品爬虫 | 8000 | 竞品数据采集与分析 | `http://localhost:8000/docs` |
+| RAG 知识库 | — | 知识检索 | Swagger UI |
+
+**主要 API 模块：**
+
+- **统一鉴权** `/api/auth` — 多平台 OAuth2 授权流程（抖店/快手/拼多多/闲鱼）
+- **店铺管理** `/api/shops` — 店铺 CRUD
+- **商品管理** `/api/products` — 商品 CRUD、状态管理、毛利计算
+- **订单管理** `/api/orders` — 订单查询（开发中）
+- **客服消息** `/api/messages` — 客服消息管理（开发中）
+- **售后服务** `/api/aftersales` — 售后工单（开发中）
+- **竞品分析** `/api/competitors` — 竞品数据（开发中）
+- **报表统计** `/api/reports` — 日报/周报（开发中）
+- **RAG 检索** `/rag/query` — 知识库语义检索
+- **竞品爬虫** `/crawl`, `/tasks`, `/analysis` — 数据采集与分析
+- **任务调度** `/tasks`, `/skills`, `/goals` — Hermes 任务编排
+
+> 📄 完整 API 文档：[docs/API.md](docs/API.md) | OpenAPI Spec：[docs/openapi.yaml](docs/openapi.yaml)
+
 ## 技术栈
 
 - **主语言**: Python

@@ -1,0 +1,581 @@
+openapi: 3.0.3
+info:
+  title: Hermes 电商自动化 API
+  description: 多平台电商自动化系统统一 API 网关
+  version: 1.0.0
+  contact:
+    name: ecom-automation team
+
+servers:
+  - url: http://localhost:8001
+    description: API Gateway
+
+tags:
+  - name: 健康检查
+    description: 服务健康状态
+  - name: 统一鉴权管理
+    description: OAuth2 授权流程（多平台统一）
+  - name: 店铺管理
+    description: 电商平台店铺 CRUD
+  - name: 商品管理
+    description: 商品 CRUD 与状态管理
+  - name: 订单管理
+    description: 订单查询（待实现）
+  - name: 客服消息
+    description: 客服消息管理（待实现）
+  - name: 售后服务
+    description: 售后工单管理（待实现）
+  - name: 竞品分析
+    description: 竞品数据查询（待实现）
+  - name: 报表统计
+    description: 运营报表（待实现）
+
+paths:
+  /health:
+    get:
+      tags: [健康检查]
+      summary: 服务健康检查
+      operationId: healthCheck
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: ecom-api-gateway
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  # ==================== 统一鉴权 ====================
+  /api/auth/authorize/{platform}:
+    get:
+      tags: [统一鉴权管理]
+      summary: 获取平台授权链接
+      operationId: authorizeShop
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Platform"
+        - name: shop_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+      responses:
+        "200":
+          description: 授权链接
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  authorization_url:
+                    type: string
+                    format: uri
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/auth/callback/{platform}:
+    get:
+      tags: [统一鉴权管理]
+      summary: OAuth 回调处理
+      operationId: oauthCallback
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Platform"
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 状态参数（通常含 shop_id）
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+      responses:
+        "200":
+          description: 授权成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  shop_id:
+                    type: string
+                  tokens:
+                    $ref: "#/components/schemas/TokenResponse"
+
+  /api/auth/refresh/{platform}:
+    post:
+      tags: [统一鉴权管理]
+      summary: 刷新访问令牌
+      operationId: refreshShopToken
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Platform"
+        - name: shop_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: refresh_token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 令牌刷新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  tokens:
+                    $ref: "#/components/schemas/TokenResponse"
+
+  # ==================== 店铺管理 ====================
+  /api/shops:
+    get:
+      tags: [店铺管理]
+      summary: 获取店铺列表
+      operationId: listShops
+      parameters:
+        - name: platform
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/Platform"
+          description: 按平台筛选
+      responses:
+        "200":
+          description: 店铺列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShopResponse"
+
+    post:
+      tags: [店铺管理]
+      summary: 创建店铺
+      operationId: createShop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopCreate"
+      responses:
+        "200":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopResponse"
+
+  /api/shops/{shop_id}:
+    get:
+      tags: [店铺管理]
+      summary: 获取店铺详情
+      operationId: getShop
+      parameters:
+        - $ref: "#/components/parameters/ShopId"
+      responses:
+        "200":
+          description: 店铺详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [店铺管理]
+      summary: 删除店铺
+      operationId: deleteShop
+      parameters:
+        - $ref: "#/components/parameters/ShopId"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 删除成功
+
+  # ==================== 商品管理 ====================
+  /api/products:
+    get:
+      tags: [商品管理]
+      summary: 获取商品列表
+      operationId: listProducts
+      parameters:
+        - name: shop_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 按店铺筛选
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, active, inactive]
+          description: 按状态筛选
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+      responses:
+        "200":
+          description: 商品列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductResponse"
+
+    post:
+      tags: [商品管理]
+      summary: 创建商品
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductCreate"
+      responses:
+        "200":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+
+  /api/products/{product_id}:
+    get:
+      tags: [商品管理]
+      summary: 获取商品详情
+      operationId: getProduct
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+      responses:
+        "200":
+          description: 商品详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/products/{product_id}/status:
+    put:
+      tags: [商品管理]
+      summary: 更新商品状态
+      operationId: updateProductStatus
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ==================== 订单管理（占位） ====================
+  /api/orders:
+    get:
+      tags: [订单管理]
+      summary: 获取订单列表
+      operationId: listOrders
+      description: 待实现
+      responses:
+        "200":
+          description: 占位响应
+
+  /api/orders/{order_id}:
+    get:
+      tags: [订单管理]
+      summary: 获取订单详情
+      operationId: getOrder
+      description: 待实现
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 占位响应
+
+  # ==================== 客服消息（占位） ====================
+  /api/messages:
+    get:
+      tags: [客服消息]
+      summary: 获取消息列表
+      operationId: listMessages
+      description: 待实现
+      responses:
+        "200":
+          description: 占位响应
+
+  # ==================== 售后服务（占位） ====================
+  /api/aftersales:
+    get:
+      tags: [售后服务]
+      summary: 获取售后列表
+      operationId: listAftersales
+      description: 待实现
+      responses:
+        "200":
+          description: 占位响应
+
+  # ==================== 竞品分析（占位） ====================
+  /api/competitors:
+    get:
+      tags: [竞品分析]
+      summary: 获取竞品列表
+      operationId: listCompetitors
+      description: 待实现
+      responses:
+        "200":
+          description: 占位响应
+
+  # ==================== 报表统计（占位） ====================
+  /api/reports/daily:
+    get:
+      tags: [报表统计]
+      summary: 获取日报
+      operationId: dailyReport
+      description: 待实现
+      responses:
+        "200":
+          description: 占位响应
+
+  /api/reports/weekly:
+    get:
+      tags: [报表统计]
+      summary: 获取周报
+      operationId: weeklyReport
+      description: 待实现
+      responses:
+        "200":
+          description: 占位响应
+
+# ==================== 组件 ====================
+components:
+  schemas:
+    Platform:
+      type: string
+      enum: [douyin, kuaishou, pdd, xianyu]
+      description: 支持的电商平台
+
+    ShopCreate:
+      type: object
+      required: [platform, shop_name]
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        shop_name:
+          type: string
+          description: 店铺名称
+
+    ShopResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: shop_1
+        platform:
+          $ref: "#/components/schemas/Platform"
+        shop_name:
+          type: string
+        auth_status:
+          type: string
+          enum: [pending, authorized, expired]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProductCreate:
+      type: object
+      required: [shop_id, title, price]
+      properties:
+        shop_id:
+          type: string
+        title:
+          type: string
+        price:
+          type: number
+          format: float
+        cost_price:
+          type: number
+          format: float
+          nullable: true
+        sku_id:
+          type: string
+          nullable: true
+
+    ProductResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: prod_1
+        shop_id:
+          type: string
+        title:
+          type: string
+        price:
+          type: number
+        cost_price:
+          type: number
+          nullable: true
+        sku_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, active, inactive]
+        listing_risk_score:
+          type: number
+        margin_score:
+          type: number
+          description: 毛利率百分比
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: 访问令牌有效期（秒）
+        refresh_expires_in:
+          type: integer
+          description: 刷新令牌有效期（秒）
+        token_type:
+          type: string
+          example: Bearer
+        scope:
+          type: string
+
+  parameters:
+    ShopId:
+      name: shop_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 店铺 ID
+
+    ProductId:
+      name: product_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 商品 ID
+
+  responses:
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: string
+
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: string
