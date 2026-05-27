@@ -1,0 +1,71 @@
+# ============================================
+# .dockerignore - 排除不需要进入镜像的文件
+# ============================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Test reports
+test-reports/
+*.test.*
+pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js (admin)
+admin/node_modules/
+admin/dist/
+admin/.cache/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+.dockerignore
+
+# Documentation (not needed in runtime)
+*.md
+docs/
+
+# N8N
+n8n/
+
+# Database migration scripts (mounted separately)
+database/
+
+# Skills and config
+skills/
+config/
+scripts/
