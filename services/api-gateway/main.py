@@ -1,7 +1,8 @@
 """
 Hermes 多平台电商自动化系统 - API网关
+统一入口，提供鉴权、路由转发、错误处理、请求追踪
 """
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
@@ -14,22 +15,27 @@ load_dotenv()
 
 # 导入路由
 from routes import shops, products, orders, messages, aftersales, competitors, reports
+from routes.auth import oauth
+
+# 导入统一错误处理和中间件
+from utils.errors import setup_error_handlers
+from utils.middleware import request_tracking_middleware
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("🚀 API网关启动中...")
-    # 启动时执行
     yield
-    # 关闭时执行
     logger.info("🛑 API网关关闭")
+
 
 # 创建FastAPI应用
 app = FastAPI(
     title="Hermes 电商自动化 API",
     description="多平台电商自动化系统统一API网关",
-    version="1.0.0",
-    lifespan=lifespan
+    version="1.1.0",
+    lifespan=lifespan,
 )
 
 # CORS配置
@@ -41,27 +47,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 请求日志中间件
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info(f"📥 {request.method} {request.url.path}")
-    response = await call_next(request)
-    logger.info(f"📤 {request.method} {request.url.path} - {response.status_code}")
-    return response
+# 请求追踪中间件（包含日志和 request_id 注入）
+app.middleware("http")(request_tracking_middleware)
 
-# 健康检查
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "service": "ecom-api-gateway",
-        "version": "1.0.0"
-    }
+# ============================================================
+# 注册统一异常处理器
+# ============================================================
+setup_error_handlers(app)
 
-# 导入 auth 路由
-from routes.auth import oauth
-
+# ============================================================
 # 注册路由
+# ============================================================
 app.include_router(oauth.router, prefix="/api/auth", tags=["统一鉴权管理"])
 app.include_router(shops.router, prefix="/api/shops", tags=["店铺管理"])
 app.include_router(products.router, prefix="/api/products", tags=["商品管理"])
@@ -71,17 +67,27 @@ app.include_router(aftersales.router, prefix="/api/aftersales", tags=["售后服
 app.include_router(competitors.router, prefix="/api/competitors", tags=["竞品分析"])
 app.include_router(reports.router, prefix="/api/reports", tags=["报表统计"])
 
-# 全局异常处理
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"❌ 全局异常: {exc}")
-    return HTTPException(status_code=500, detail=str(exc))
+
+# ============================================================
+# 健康检查 & 根路径
+# ============================================================
+@app.get("/")
+async def root():
+    return {
+        "service": "ecom-api-gateway",
+        "version": "1.1.0",
+        "status": "running",
+    }
+
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "ecom-api-gateway",
+        "version": "1.1.0",
+    }
+
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host=os.getenv("API_GATEWAY_HOST", "0.0.0.0"),
-        port=int(os.getenv("API_GATEWAY_PORT", "8000")),
-        workers=int(os.getenv("API_GATEWORKERS", "4")),
-        reload=True
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
