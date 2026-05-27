@@ -223,7 +223,9 @@ const Products = () => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [batchPriceModalVisible, setBatchPriceModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [batchPriceForm] = Form.useForm();
 
   // 统计数据
   const stats = {
@@ -332,6 +334,39 @@ const Products = () => {
         setSelectedRowKeys([]);
         message.success(`${action === 'delete' ? '删除' : '下架'}成功`);
       },
+    });
+  };
+
+  // 批量调价
+  const handleBatchPriceAdjust = () => {
+    batchPriceForm.validateFields().then(values => {
+      if (selectedRowKeys.length === 0) {
+        message.warning('请先选择商品');
+        return;
+      }
+      const { adjustType, adjustValue } = values;
+      setProducts(products.map(p => {
+        if (selectedRowKeys.includes(p.id)) {
+          let newPrice;
+          if (adjustType === 'increase_pct') {
+            newPrice = Math.round(p.price * (1 + adjustValue / 100) * 100) / 100;
+          } else if (adjustType === 'decrease_pct') {
+            newPrice = Math.round(p.price * (1 - adjustValue / 100) * 100) / 100;
+          } else if (adjustType === 'increase_amt') {
+            newPrice = Math.round((p.price + adjustValue) * 100) / 100;
+          } else {
+            newPrice = Math.round(Math.max(p.price - adjustValue, 0) * 100) / 100;
+          }
+          const newProfit = newPrice - p.cost;
+          const newMargin = newPrice > 0 ? ((newProfit / newPrice) * 100).toFixed(1) : '0.0';
+          return { ...p, price: newPrice, profit: newProfit, margin: newMargin, updatedAt: new Date().toISOString() };
+        }
+        return p;
+      }));
+      setBatchPriceModalVisible(false);
+      batchPriceForm.resetFields();
+      setSelectedRowKeys([]);
+      message.success(`已调整 ${selectedRowKeys.length} 个商品的价格`);
     });
   };
 
@@ -685,6 +720,9 @@ const Products = () => {
                 <Button size="small" style={{ borderRadius: 4 }} onClick={() => handleBatchAction('disable')}>
                   批量下架
                 </Button>
+                <Button size="small" style={{ borderRadius: 4 }} onClick={() => setBatchPriceModalVisible(true)}>
+                  批量调价
+                </Button>
                 <Button size="small" danger style={{ borderRadius: 4 }} onClick={() => handleBatchAction('delete')}>
                   批量删除
                 </Button>
@@ -966,6 +1004,53 @@ const Products = () => {
           </Row>
           <Form.Item name="description" label="商品描述">
             <TextArea rows={4} placeholder="请输入商品描述" style={{ borderRadius: 6 }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      {/* 批量调价弹窗 */}
+      <Modal
+        title={
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#1D2129' }}>
+            批量调价
+          </span>
+        }
+        open={batchPriceModalVisible}
+        onCancel={() => {
+          setBatchPriceModalVisible(false);
+          batchPriceForm.resetFields();
+        }}
+        onOk={handleBatchPriceAdjust}
+        width={480}
+        okText="确定调整"
+        cancelText="取消"
+        okButtonProps={{ style: { background: '#165DFF', borderRadius: 6 } }}
+      >
+        <div style={{
+          marginBottom: 16,
+          padding: '12px 16px',
+          background: '#E6F7FF',
+          borderRadius: 6,
+          border: '1px solid #91D5FF',
+        }}>
+          <Text>将对选中的 <Text strong style={{ color: '#165DFF' }}>{selectedRowKeys.length}</Text> 个商品进行价格调整</Text>
+        </div>
+        <Form form={batchPriceForm} layout="vertical" initialValues={{ adjustType: 'increase_pct' }}>
+          <Form.Item name="adjustType" label="调整方式" rules={[{ required: true, message: '请选择调整方式' }]}>
+            <Select>
+              <Option value="increase_pct">按百分比涨价</Option>
+              <Option value="decrease_pct">按百分比降价</Option>
+              <Option value="increase_amt">按金额涨价</Option>
+              <Option value="decrease_amt">按金额降价</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="adjustValue" label="调整数值" rules={[{ required: true, message: '请输入调整数值' }]}>
+            <InputNumber
+              style={{ width: '100%', borderRadius: 6 }}
+              min={0}
+              precision={2}
+              placeholder="请输入数值"
+              addonAfter={"元 / %"}
+            />
           </Form.Item>
         </Form>
       </Modal>

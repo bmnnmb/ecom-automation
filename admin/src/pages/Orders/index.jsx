@@ -287,6 +287,59 @@ const Orders = () => {
     });
   };
 
+  // 确认收货
+  const handleConfirmReceipt = (order) => {
+    Modal.confirm({
+      title: '确认收货',
+      content: `确认订单"${order.orderNo}"已收货吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: () => {
+        setOrders(orders.map(o => 
+          o.id === order.id 
+            ? { 
+                ...o, 
+                status: 'completed', 
+                statusLabel: '已完成', 
+                statusColor: 'success',
+                statusStep: 3,
+                completedAt: new Date().toISOString(),
+              } 
+            : o
+        ));
+        message.success('确认收货成功');
+      },
+    });
+  };
+
+  // 导出CSV
+  const handleExportCSV = () => {
+    const headers = ['订单号', '平台', '商品', '数量', '金额', '利润', '客户', '状态', '下单时间'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredOrders.map(o => [
+        o.orderNo,
+        o.platformName,
+        o.product,
+        o.quantity,
+        o.amount.toFixed(2),
+        o.profit.toFixed(2),
+        o.customer,
+        o.statusLabel,
+        new Date(o.createdAt).toLocaleString(),
+      ].join(',')),
+    ].join('\n');
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `orders_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    message.success(`已导出 ${filteredOrders.length} 条订单`);
+  };
+
   // 表格列配置
   const columns = [
     {
@@ -384,6 +437,11 @@ const Orders = () => {
           {record.status === 'refunding' && (
             <Tooltip title="退款">
               <Button type="text" icon={<DollarOutlined />} onClick={() => handleRefund(record)} />
+            </Tooltip>
+          )}
+          {record.status === 'shipped' && (
+            <Tooltip title="确认收货">
+              <Button type="text" icon={<CheckCircleOutlined />} onClick={() => handleConfirmReceipt(record)} style={{ color: '#00B42A' }} />
             </Tooltip>
           )}
           <Dropdown
@@ -535,7 +593,7 @@ const Orders = () => {
           </Col>
           <Col>
             <Space>
-              <Button icon={<ExportOutlined />}>导出</Button>
+              <Button icon={<ExportOutlined />} onClick={handleExportCSV}>导出</Button>
               <Button icon={<PrinterOutlined />}>批量打印</Button>
             </Space>
           </Col>

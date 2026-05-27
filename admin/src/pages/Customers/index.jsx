@@ -136,6 +136,9 @@ export default function Customers() {
   const [modalType, setModalType] = useState('add'); // 'add' | 'edit'
   const [form] = Form.useForm();
   const [orders, setOrders] = useState([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [batchTagModalVisible, setBatchTagModalVisible] = useState(false);
+  const [batchTagForm] = Form.useForm();
 
   // 筛选状态
   const [filters, setFilters] = useState({
@@ -508,6 +511,36 @@ export default function Customers() {
         </Col>
       </Row>
 
+      {/* 客户分群分析 */}
+      <Card style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Text strong style={{ fontSize: 14 }}>客户分群分析</Text>
+        </div>
+        <Row gutter={[16, 8]}>
+          {[
+            { label: '高价值客户', count: customers.filter(c => c.totalSpent > 30000).length, color: '#722ED1', bg: '#F9F0FF', desc: '消费>3万' },
+            { label: '活跃客户', count: customers.filter(c => c.tags.includes('活跃')).length, color: '#00B42A', bg: '#E8FFEA', desc: '近30天购买' },
+            { label: '沉睡客户', count: customers.filter(c => c.tags.includes('沉睡')).length, color: '#FF7D00', bg: '#FFF7E8', desc: '需唤醒' },
+            { label: '流失风险', count: customers.filter(c => c.tags.includes('流失')).length, color: '#F53F3F', bg: '#FFECE8', desc: '需挽回' },
+            { label: '新客户', count: customers.filter(c => c.tags.includes('新客户')).length, color: '#165DFF', bg: '#E8F3FF', desc: '首次购买' },
+          ].map((item, idx) => (
+            <Col key={idx} xs={12} sm={8} md={4} lg={4} style={{ textAlign: 'center' }}>
+              <div style={{
+                padding: '16px 12px',
+                background: item.bg,
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+              }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: item.color }}>{item.count}</div>
+                <div style={{ fontSize: 13, color: '#1D2129', marginTop: 4 }}>{item.label}</div>
+                <div style={{ fontSize: 11, color: '#86909C', marginTop: 2 }}>{item.desc}</div>
+              </div>
+            </Col>
+          ))}
+        </Row>
+      </Card>
+
       {/* 筛选区域 */}
       <Card style={{ marginBottom: 24 }}>
         <Row gutter={[16, 16]} align="middle">
@@ -555,10 +588,62 @@ export default function Customers() {
 
       {/* 客户表格 */}
       <Card>
+        {/* 批量操作栏 */}
+        {selectedRowKeys.length > 0 && (
+          <div style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            background: '#E6F7FF',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            border: '1px solid #91D5FF',
+          }}>
+            <span style={{ fontSize: 13, color: '#1D2129' }}>
+              已选择 <Text strong style={{ color: '#165DFF' }}>{selectedRowKeys.length}</Text> 个客户
+            </span>
+            <Space size={8}>
+              <Button size="small" icon={<TagOutlined />} onClick={() => setBatchTagModalVisible(true)}>
+                批量打标签
+              </Button>
+              <Button size="small" icon={<MessageOutlined />} onClick={() => {
+                message.success(`已向 ${selectedRowKeys.length} 个客户发送消息`);
+                setSelectedRowKeys([]);
+              }}>
+                批量发消息
+              </Button>
+              <Button size="small" danger onClick={() => {
+                Modal.confirm({
+                  title: '确认删除',
+                  content: `确定要删除选中的 ${selectedRowKeys.length} 个客户吗？此操作不可恢复。`,
+                  okText: '确定',
+                  cancelText: '取消',
+                  onOk: () => {
+                    setCustomers(customers.filter(c => !selectedRowKeys.includes(c.key)));
+                    setSelectedRowKeys([]);
+                    message.success('批量删除成功');
+                  },
+                });
+              }}>
+                批量删除
+              </Button>
+              <Button size="small" type="link" onClick={() => setSelectedRowKeys([])}>
+                取消选择
+              </Button>
+            </Space>
+          </div>
+        )}
+
         <Table
           columns={columns}
           dataSource={customers}
           loading={loading}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+            selections: [Table.SELECTION_ALL, Table.SELECTION_INVERT, Table.SELECTION_NONE],
+          }}
           pagination={{
             ...pagination,
             showSizeChanger: true,
@@ -813,6 +898,52 @@ export default function Customers() {
           </Row>
           <Form.Item name="address" label="地址">
             <Input.TextArea rows={2} placeholder="请输入详细地址" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 批量打标签弹窗 */}
+      <Modal
+        title="批量打标签"
+        open={batchTagModalVisible}
+        onOk={() => {
+          const selectedTags = batchTagForm.getFieldValue('tags') || [];
+          if (selectedTags.length === 0) {
+            message.warning('请至少选择一个标签');
+            return;
+          }
+          setCustomers(customers.map(c => {
+            if (selectedRowKeys.includes(c.key)) {
+              const newTags = [...new Set([...c.tags, ...selectedTags])];
+              return { ...c, tags: newTags };
+            }
+            return c;
+          }));
+          setBatchTagModalVisible(false);
+          batchTagForm.resetFields();
+          setSelectedRowKeys([]);
+          message.success(`已为 ${selectedRowKeys.length} 个客户添加标签`);
+        }}
+        onCancel={() => {
+          setBatchTagModalVisible(false);
+          batchTagForm.resetFields();
+        }}
+        okText="确定"
+        cancelText="取消"
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text>为选中的 <Text strong style={{ color: '#165DFF' }}>{selectedRowKeys.length}</Text> 个客户添加标签：</Text>
+        </div>
+        <Form form={batchTagForm} layout="vertical">
+          <Form.Item name="tags" label="选择标签">
+            <Select mode="multiple" placeholder="请选择标签" style={{ width: '100%' }}>
+              <Option value="新客户">新客户</Option>
+              <Option value="活跃">活跃</Option>
+              <Option value="沉睡">沉睡</Option>
+              <Option value="流失">流失</Option>
+              <Option value="VIP">VIP</Option>
+              <Option value="高价值">高价值</Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>
