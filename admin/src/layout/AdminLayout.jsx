@@ -15,6 +15,8 @@ import {
   SearchOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  RadarChartOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 
@@ -66,6 +68,11 @@ const menuItems = [
         icon: <CustomerServiceOutlined />,
         label: '客服中心',
       },
+      {
+        key: '/competitors',
+        icon: <RadarChartOutlined />,
+        label: '竞品分析',
+      },
     ],
   },
   {
@@ -92,6 +99,11 @@ const menuItems = [
         key: '/system',
         icon: <SettingOutlined />,
         label: '系统管理',
+      },
+      {
+        key: '/settings',
+        icon: <ToolOutlined />,
+        label: '系统设置',
       },
     ],
   },

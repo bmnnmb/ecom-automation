@@ -12,6 +12,7 @@ import Analytics from '../pages/Analytics';
 import SupplyChain from '../pages/SupplyChain';
 import Customers from '../pages/Customers';
 import Finance from '../pages/Finance';
+import Settings from '../pages/Settings';
 
 const router = createBrowserRouter([
   {
@@ -27,7 +28,9 @@ const router = createBrowserRouter([
       { path: 'service', element: <CustomerService /> },
       { path: 'finance', element: <Finance /> },
       { path: 'supply-chain', element: <SupplyChain /> },
+      { path: 'competitors', element: <Competitors /> },
       { path: 'system', element: <System /> },
+      { path: 'settings', element: <Settings /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
