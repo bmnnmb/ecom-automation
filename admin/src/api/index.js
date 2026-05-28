@@ -242,6 +242,38 @@ export async function fetchCompetitors() {
   }
 }
 
+// ==================== 系统设置 ====================
+
+export async function fetchSettings() {
+  try {
+    const data = await apiRequest('/api/settings');
+    return { ...data, source: 'api' };
+  } catch {
+    // 后端不可用时从 localStorage 读取
+    const saved = localStorage.getItem('ecom_settings');
+    if (saved) {
+      try { return { ...JSON.parse(saved), source: 'local' }; } catch {}
+    }
+    return null; // 返回 null 表示使用默认值
+  }
+}
+
+export async function saveSettings(settings) {
+  try {
+    const data = await apiRequest('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+    // 同步保存到 localStorage 作为备份
+    localStorage.setItem('ecom_settings', JSON.stringify(data));
+    return { ...data, source: 'api' };
+  } catch {
+    // 后端不可用时保存到 localStorage
+    localStorage.setItem('ecom_settings', JSON.stringify(settings));
+    return { ...settings, source: 'local' };
+  }
+}
+
 // ==================== 初始化 ====================
 
 export async function initApi() {

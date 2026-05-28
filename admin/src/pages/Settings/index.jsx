@@ -1,19 +1,50 @@
 /**
  * 系统设置
  * 店铺信息 + 平台配置 + 通知设置 + AI配置
+ *
+ * 真实API版本: GET/PUT /api/settings
+ * 后端不可用时降级使用 localStorage
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { fetchSettings, saveSettings } from '../../api/index.js';
 import { DEFAULT_SETTINGS, PLATFORMS } from '../../utils/mock';
 import '../Competitors/Competitors.css';
 
 export default function Settings() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState(null); // 'success' | 'error' | null
+  const [dataSource, setDataSource] = useState(null);  // 'api' | 'local' | null
   const [douyinConnected, setDouyinConnected] = useState(!!localStorage.getItem('douyin_token'));
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // 初始化: 从后端加载配置
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const result = await fetchSettings();
+        if (result && result.data) {
+          setSettings(result.data);
+          setDataSource(result.source);
+        } else {
+          // 后端不可用且无本地备份，使用默认值
+          setSettings(DEFAULT_SETTINGS);
+          setDataSource('default');
+        }
+      } catch (e) {
+        console.error('加载设置失败:', e);
+        setSettings(DEFAULT_SETTINGS);
+        setDataSource('default');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const handleDouyinAuth = async () => {
-    // 生成授权URL并跳转
     const redirectUri = window.location.origin + '/settings?auth=callback';
     try {
       const res = await fetch(`http://localhost:8001/auth/url?redirect_uri=${encodeURIComponent(redirectUri)}`);
@@ -33,13 +64,28 @@ export default function Settings() {
       ...prev,
       [section]: { ...prev[section], [key]: value }
     }));
-    setSaved(false);
+    setHasChanges(true);
+    setSaveStatus(null);
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  const handleSave = useCallback(async () => {
+    if (!settings || saving) return;
+    setSaving(true);
+    setSaveStatus(null);
+    try {
+      const result = await saveSettings(settings);
+      setDataSource(result.source);
+      setSaveStatus('success');
+      setHasChanges(false);
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch (e) {
+      console.error('保存设置失败:', e);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(null), 5000);
+    } finally {
+      setSaving(false);
+    }
+  }, [settings, saving]);
 
   const tabs = [
     { key: 'general', label: '基础设置', icon: '⚙️' },
@@ -54,11 +100,48 @@ export default function Settings() {
     <div className={`switch ${checked ? 'on' : ''}`} onClick={() => onChange(!checked)} />
   );
 
+  // 加载中
+  if (loading || !settings) {
+    return (
+      <div className="fade-in">
+        <div className="page-header">
+          <h2 className="page-title">系统设置</h2>
+          <p className="page-desc">加载中...</p>
+        </div>
+        <div className="card">
+          <div className="card-body" style={{ textAlign: 'center', padding: 60, color: 'var(--text-3)' }}>
+            ⏳ 正在加载配置...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fade-in">
       <div className="page-header">
-        <h2 className="page-title">系统设置</h2>
-        <p className="page-desc">管理店铺信息、平台对接、通知和AI配置</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 className="page-title">系统设置</h2>
+            <p className="page-desc">管理店铺信息、平台对接、通知和AI配置</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {dataSource && (
+              <span style={{
+                fontSize: 12,
+                padding: '4px 10px',
+                borderRadius: 12,
+                background: dataSource === 'api' ? '#E8FFEA' : dataSource === 'local' ? '#FFF7E8' : '#F2F3F5',
+                color: dataSource === 'api' ? '#00B42A' : dataSource === 'local' ? '#D46B08' : '#86909C',
+              }}>
+                {dataSource === 'api' ? '🟢 后端已连接' : dataSource === 'local' ? '🟡 本地存储' : '⚪ 使用默认值'}
+              </span>
+            )}
+            {hasChanges && (
+              <span style={{ fontSize: 12, color: '#FF7D00' }}>● 有未保存的更改</span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 'var(--spacing-lg)' }}>
@@ -407,10 +490,29 @@ export default function Settings() {
             )}
 
             {/* 保存按钮 */}
-            <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              <button className="btn btn-primary" onClick={handleSave}>
-                {saved ? '✅ 已保存' : '💾 保存设置'}
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <button
+                className={`btn ${saveStatus === 'success' ? 'btn-default' : 'btn-primary'}`}
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+                style={{
+                  minWidth: 120,
+                  opacity: (!hasChanges && !saving) ? 0.6 : 1,
+                  cursor: (!hasChanges && !saving) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {saving ? '⏳ 保存中...' : saveStatus === 'success' ? '✅ 已保存' : saveStatus === 'error' ? '❌ 保存失败' : '💾 保存设置'}
               </button>
+              {saveStatus === 'success' && (
+                <span style={{ fontSize: 13, color: '#00B42A' }}>
+                  配置已保存到{dataSource === 'api' ? '服务器' : '本地存储'}
+                </span>
+              )}
+              {saveStatus === 'error' && (
+                <span style={{ fontSize: 13, color: '#F53F3F' }}>
+                  保存失败，请检查网络连接后重试
+                </span>
+              )}
             </div>
           </div>
         </div>
