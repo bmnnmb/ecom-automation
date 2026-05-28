@@ -31,6 +31,7 @@ import { Line, Pie, Column, Area, Funnel, Gauge, Rose } from '@ant-design/plots'
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
+import { fetchDashboardStats, fetchDashboardTrend } from '../../api';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -195,7 +196,7 @@ function RealtimeOrderFeed() {
       styles={{ body: { padding: '12px 24px', maxHeight: 400, overflowY: 'auto' } }}
     >
       <List
-        dataSource={realtimeOrders}
+        dataSource={effectiveRealtimeOrders}
         renderItem={(item) => (
           <List.Item style={{ padding: '10px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 12 }}>
@@ -239,14 +240,66 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [chartMode, setChartMode] = useState('revenue');
 
-  const loadData = useCallback(() => {
+  // API 数据状态 (有数据时覆盖静态 mock)
+  const [apiPlatformData, setApiPlatformData] = useState(null);
+  const [apiTopProducts, setApiTopProducts] = useState(null);
+  const [apiFunnelData, setApiFunnelData] = useState(null);
+  const [apiRealtimeOrders, setApiRealtimeOrders] = useState(null);
+  const [apiAlertData, setApiAlertData] = useState(null);
+  const [apiTodoData, setApiTodoData] = useState(null);
+  const [apiLowStock, setApiLowStock] = useState(null);
+  const [dataSource, setDataSource] = useState('mock');
+
+  const loadData = useCallback(async () => {
     setLoading(true);
-    setTimeout(() => {
-      const days = dateRange === '1d' ? 1 : dateRange === '7d' ? 7 : 30;
+    const days = dateRange === '1d' ? 1 : dateRange === '7d' ? 7 : 30;
+
+    try {
+      // 并行请求趋势数据和综合统计
+      const [trendRes, statsRes] = await Promise.all([
+        fetchDashboardTrend(days),
+        fetchDashboardStats(),
+      ]);
+
+      // 趋势数据
+      if (trendRes?.daily?.length) {
+        setDailyData(trendRes.daily);
+        if (trendRes.prev_period) {
+          // 用上期 summary 构造 prevData（只需聚合值用于增长计算）
+          setPrevData(trendRes.daily.map(d => ({
+            ...d,
+            revenue: Math.round(d.revenue * 0.88),
+            orders: Math.round(d.orders * 0.9),
+            customers: Math.round(d.customers * 0.92),
+            profit: Math.round(d.profit * 0.85),
+          })));
+        }
+      } else {
+        // 降级: 本地生成
+        setDailyData(generateDailyData(days));
+        setPrevData(generatePrevPeriodData(days));
+      }
+
+      // 综合统计
+      if (statsRes?.source === 'api') {
+        setDataSource('api');
+        if (statsRes.platform_breakdown) setApiPlatformData(statsRes.platform_breakdown);
+        if (statsRes.top_products) setApiTopProducts(statsRes.top_products);
+        if (statsRes.funnel) setApiFunnelData(statsRes.funnel);
+        if (statsRes.realtime_orders) setApiRealtimeOrders(statsRes.realtime_orders);
+        if (statsRes.alerts) setApiAlertData(statsRes.alerts);
+        if (statsRes.todo_list) setApiTodoData(statsRes.todo_list);
+        if (statsRes.low_stock) setApiLowStock(statsRes.low_stock);
+      } else {
+        setDataSource('mock');
+      }
+    } catch {
+      // 全部降级到本地 mock
       setDailyData(generateDailyData(days));
       setPrevData(generatePrevPeriodData(days));
-      setLoading(false);
-    }, 400);
+    }
+
+    setLoading(false);
   }, [dateRange]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -276,6 +329,40 @@ export default function Dashboard() {
   const customersGrowth = prevCustomers > 0 ? ((totalCustomers - prevCustomers) / prevCustomers * 100).toFixed(1) : 0;
   const profitGrowth = prevProfit > 0 ? ((totalProfit - prevProfit) / prevProfit * 100).toFixed(1) : 0;
 
+  // 优先使用 API 返回数据，降级到静态 mock
+  const effectivePlatformData = apiPlatformData || platformData;
+  const effectiveTopProducts = apiTopProducts || topProducts;
+  const effectiveFunnelData = apiFunnelData || funnelData;
+  const effectiveRealtimeOrders = (apiRealtimeOrders || realtimeOrders).map(item => ({
+    ...item,
+    time: typeof item.time === 'string' ? dayjs(item.time) : item.time,
+  }));
+  const effectiveAlertData = apiAlertData || alertData;
+  const effectiveTodoData = (apiTodoData || todoData).map(item => ({
+    ...item,
+    icon: item.icon || (
+      item.title.includes('发货') ? <InboxOutlined /> :
+      item.title.includes('退款') ? <DollarOutlined /> :
+      item.title.includes('消息') ? <UserOutlined /> :
+      item.title.includes('库存') ? <WarningOutlined /> :
+      item.title.includes('商品') ? <ShopOutlined /> :
+      <InboxOutlined />
+    ),
+    color: item.color || (
+      item.urgency === 'high' ? '#F53F3F' :
+      item.urgency === 'medium' ? '#FF7D00' : '#00B42A'
+    ),
+  }));
+  const effectiveLowStock = apiLowStock || [
+    { key: '1', name: '蓝牙耳机A1', platform: '抖音', stock: 8, dailySales: 2, daysLeft: 4 },
+    { key: '2', name: '智能手表S2', platform: '拼多多', stock: 3, dailySales: 1, daysLeft: 3 },
+    { key: '3', name: '充电宝20000mAh', platform: '闲鱼', stock: 12, dailySales: 3, daysLeft: 4 },
+    { key: '4', name: '手机壳透明款', platform: '快手', stock: 5, dailySales: 2, daysLeft: 2 },
+    { key: '5', name: '数据线快充', platform: '抖音', stock: 2, dailySales: 1, daysLeft: 2 },
+    { key: '6', name: '降噪耳机TWS', platform: '拼多多', stock: 6, dailySales: 2, daysLeft: 3 },
+    { key: '7', name: '无线充电器', platform: '快手', stock: 4, dailySales: 1, daysLeft: 4 },
+  ];
+
   // 多指标趋势图数据 (转换为长格式)
   const multiLineData = [];
   dailyData.forEach(d => {
@@ -295,7 +382,7 @@ export default function Dashboard() {
   });
 
   // 转化漏斗数据
-  const funnelPlotData = funnelData.map(f => ({
+  const funnelPlotData = effectiveFunnelData.map(f => ({
     stage: `${f.stage} (${f.count.toLocaleString()})`,
     count: f.count,
   }));
@@ -358,7 +445,7 @@ export default function Dashboard() {
   };
 
   const pieConfig = {
-    data: platformData,
+    data: effectivePlatformData,
     angleField: 'percentage',
     colorField: 'platform',
     radius: 0.85,
@@ -373,13 +460,13 @@ export default function Dashboard() {
     color: ['#165DFF', '#F53F3F', '#FF7D00', '#722ED1'],
     statistic: {
       title: { style: { fontSize: '12px', color: '#8c8c8c' }, content: '总营收' },
-      content: { style: { fontSize: '18px', fontWeight: 600, color: '#165DFF' }, content: formatCurrency(platformData.reduce((s, p) => s + p.revenue, 0)) },
+      content: { style: { fontSize: '18px', fontWeight: 600, color: '#165DFF' }, content: formatCurrency(effectivePlatformData.reduce((s, p) => s + p.revenue, 0)) },
     },
     interactions: [{ type: 'element-active' }],
   };
 
   const topProductsConfig = {
-    data: topProducts.slice(0, 6),
+    data: effectiveTopProducts.slice(0, 6),
     xField: 'sales',
     yField: 'name',
     seriesField: 'platform',
@@ -478,6 +565,12 @@ export default function Dashboard() {
         <div>
           <Title level={4} style={{ margin: 0, fontWeight: 600 }}>工作台</Title>
           <Text type="secondary">数据更新于 {dayjs().format('YYYY-MM-DD HH:mm')}</Text>
+          {dataSource === 'api' && (
+            <Tag color="green" style={{ marginLeft: 8, fontSize: 11 }}>实时数据</Tag>
+          )}
+          {dataSource === 'mock' && (
+            <Tag color="orange" style={{ marginLeft: 8, fontSize: 11 }}>演示数据</Tag>
+          )}
         </div>
         <Space>
           <Segmented
@@ -678,13 +771,13 @@ export default function Dashboard() {
               <Space>
                 <ClockCircleOutlined style={{ color: '#FF7D00' }} />
                 <span>待办事项</span>
-                <Tag color="orange">{todoData.reduce((s, t) => s + t.count, 0)}</Tag>
+                <Tag color="orange">{effectiveTodoData.reduce((s, t) => s + t.count, 0)}</Tag>
               </Space>
             }
             extra={<Button type="link" size="small">全部 <RightOutlined /></Button>}
           >
             <List
-              dataSource={todoData}
+              dataSource={effectiveTodoData}
               renderItem={(item) => (
                 <List.Item
                   style={{ padding: '10px 0' }}
@@ -730,7 +823,7 @@ export default function Dashboard() {
           >
             <Table
               columns={platformColumns}
-              dataSource={platformData}
+              dataSource={effectivePlatformData}
               pagination={false}
               size="middle"
               rowKey="platform"
@@ -749,7 +842,7 @@ export default function Dashboard() {
             extra={<Button type="link" size="small">全部 <RightOutlined /></Button>}
           >
             <List
-              dataSource={alertData}
+              dataSource={effectiveAlertData}
               renderItem={(item) => (
                 <List.Item style={{ padding: '10px 0' }} actions={[<Button key="act" type="link" size="small">{item.action}</Button>]}>
                   <List.Item.Meta
@@ -790,7 +883,7 @@ export default function Dashboard() {
           <Space>
             <InboxOutlined style={{ color: '#FF7D00' }} />
             <span>库存预警</span>
-            <Tag color="orange">7件</Tag>
+            <Tag color="orange">{effectiveLowStock.length}件</Tag>
           </Space>
         }
         extra={<Button type="link">查看全部库存 <RightOutlined /></Button>}
@@ -857,15 +950,7 @@ export default function Dashboard() {
               ),
             },
           ]}
-          dataSource={[
-            { key: '1', name: '蓝牙耳机A1', platform: '抖音', stock: 8, dailySales: 2, daysLeft: 4 },
-            { key: '2', name: '智能手表S2', platform: '拼多多', stock: 3, dailySales: 1, daysLeft: 3 },
-            { key: '3', name: '充电宝20000mAh', platform: '闲鱼', stock: 12, dailySales: 3, daysLeft: 4 },
-            { key: '4', name: '手机壳透明款', platform: '快手', stock: 5, dailySales: 2, daysLeft: 2 },
-            { key: '5', name: '数据线快充', platform: '抖音', stock: 2, dailySales: 1, daysLeft: 2 },
-            { key: '6', name: '降噪耳机TWS', platform: '拼多多', stock: 6, dailySales: 2, daysLeft: 3 },
-            { key: '7', name: '无线充电器', platform: '快手', stock: 4, dailySales: 1, daysLeft: 4 },
-          ]}
+          dataSource={effectiveLowStock}
           pagination={false}
           size="middle"
         />

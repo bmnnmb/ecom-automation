@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 导入路由
-from routes import shops, products, orders, messages, aftersales, competitors, reports
+from routes import shops, products, orders, messages, aftersales, competitors, reports, dashboard
 from routes.auth import oauth
 
 # 导入统一错误处理和中间件
@@ -66,6 +66,7 @@ app.include_router(messages.router, prefix="/api/messages", tags=["客服消息"
 app.include_router(aftersales.router, prefix="/api/aftersales", tags=["售后服务"])
 app.include_router(competitors.router, prefix="/api/competitors", tags=["竞品分析"])
 app.include_router(reports.router, prefix="/api/reports", tags=["报表统计"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["运营看板"])
 
 
 # ============================================================

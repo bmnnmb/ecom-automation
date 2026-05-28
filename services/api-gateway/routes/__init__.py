@@ -1,4 +1,4 @@
 """
 API路由模块
 """
-from . import shops, products, orders, messages, aftersales, competitors, reports
+from . import shops, products, orders, messages, aftersales, competitors, reports, dashboard

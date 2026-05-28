@@ -133,14 +133,20 @@ export async function sendMessage(conversationId, content) {
 // ==================== Dashboard ====================
 
 export async function fetchDashboardStats() {
-  if (!apiAvailable) {
-    return { ...generateDashboardStats(), source: 'mock' };
-  }
   try {
     const data = await apiRequest('/api/dashboard/stats');
     return { ...data, source: 'api' };
   } catch {
     return { ...generateDashboardStats(), source: 'mock' };
+  }
+}
+
+export async function fetchDashboardTrend(days = 7) {
+  try {
+    const data = await apiRequest(`/api/dashboard/trend?days=${days}`);
+    return { ...data, source: 'api' };
+  } catch {
+    return null;
   }
 }
 

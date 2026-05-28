@@ -19,10 +19,6 @@ export default defineConfig({
         target: 'http://localhost:8005',
         changeOrigin: true,
       },
-      '/api/dashboard': {
-        target: 'http://localhost:8005',
-        changeOrigin: true,
-      },
       // 商品管理服务路由 → port 8006
       '/api/products': {
         target: 'http://localhost:8006',
