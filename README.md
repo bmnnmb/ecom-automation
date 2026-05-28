@@ -110,6 +110,17 @@ docker-compose up -d
 
 > 📄 完整 API 文档：[docs/API.md](docs/API.md) | OpenAPI Spec：[docs/openapi.yaml](docs/openapi.yaml)
 
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [docs/API.md](docs/API.md) | 完整 API 接口文档 |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | 部署指南 |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发指南（环境搭建、编码规范、测试流程） |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 故障排除指南（常见问题与解决方案） |
+| [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.0 规范文件 |
+| [BUG-TRACKING.md](BUG-TRACKING.md) | Bug 跟踪记录 |
+
 ## 技术栈
 
 - **主语言**: Python
