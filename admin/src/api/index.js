@@ -10,7 +10,7 @@ import {
   generateOrders, generateProducts, generateConversations, 
   generateCompetitors, generateDashboardStats,
   PLATFORMS, ORDER_STATUS 
-} from './mock';
+} from '../utils/mock';
 
 // 后端API地址（可通过环境变量配置）
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8001';
@@ -151,6 +151,154 @@ export async function fetchDashboardTrend(days = 7) {
 }
 
 // ==================== 竞品 ====================
+
+// ==================== 营销 ====================
+
+// Mock 优惠券数据
+const mockCoupons = [
+  { id: 1, name: '新用户专享券', type: '满减券', discount: 20, condition: '满100可用', total: 10000, used: 3562, status: 'active', startTime: '2026-04-01', endTime: '2026-04-30', createdAt: '2026-03-28' },
+  { id: 2, name: '会员日折扣券', type: '折扣券', discount: 85, condition: '满200可用', total: 5000, used: 1234, status: 'active', startTime: '2026-04-15', endTime: '2026-04-20', createdAt: '2026-04-10' },
+  { id: 3, name: '春季大促券', type: '满减券', discount: 50, condition: '满300可用', total: 20000, used: 8765, status: 'active', startTime: '2026-04-01', endTime: '2026-05-01', createdAt: '2026-03-25' },
+  { id: 4, name: '限时秒杀券', type: '无门槛券', discount: 10, condition: '无限制', total: 50000, used: 45231, status: 'expired', startTime: '2026-03-01', endTime: '2026-03-31', createdAt: '2026-02-25' },
+  { id: 5, name: 'VIP专属券', type: '折扣券', discount: 70, condition: '满500可用', total: 1000, used: 234, status: 'active', startTime: '2026-04-01', endTime: '2026-06-30', createdAt: '2026-03-20' },
+];
+
+// Mock 促销活动数据
+const mockCampaigns = [
+  { id: 1, name: '春季焕新大促', type: '满减活动', startTime: '2026-04-01', endTime: '2026-04-30', products: 156, sales: 23456, revenue: 1256800, status: 'ongoing', participants: 12580 },
+  { id: 2, name: '会员专享日', type: '折扣活动', startTime: '2026-04-15', endTime: '2026-04-20', products: 89, sales: 8765, revenue: 456200, status: 'ongoing', participants: 5620 },
+  { id: 3, name: '限时秒杀专场', type: '秒杀活动', startTime: '2026-04-10', endTime: '2026-04-12', products: 24, sales: 15620, revenue: 892300, status: 'ended', participants: 23150 },
+  { id: 4, name: '新品首发特惠', type: '新品活动', startTime: '2026-04-20', endTime: '2026-04-25', products: 12, sales: 0, revenue: 0, status: 'pending', participants: 0 },
+  { id: 5, name: '五一劳动节大促', type: '满减活动', startTime: '2026-05-01', endTime: '2026-05-07', products: 200, sales: 0, revenue: 0, status: 'pending', participants: 0 },
+];
+
+// Mock 分销员数据
+const mockDistributors = [
+  { id: 1, name: '张小明', avatar: '', level: '金牌分销员', sales: 156200, orders: 324, commission: 12580, status: 'active', joinDate: '2025-06-15', phone: '138****8888' },
+  { id: 2, name: '李美丽', avatar: '', level: '银牌分销员', sales: 89500, orders: 186, commission: 7160, status: 'active', joinDate: '2025-08-20', phone: '139****9999' },
+  { id: 3, name: '王大伟', avatar: '', level: '金牌分销员', sales: 134800, orders: 278, commission: 10784, status: 'active', joinDate: '2025-05-10', phone: '137****7777' },
+  { id: 4, name: '赵晓燕', avatar: '', level: '铜牌分销员', sales: 45200, orders: 92, commission: 2712, status: 'inactive', joinDate: '2025-10-05', phone: '136****6666' },
+  { id: 5, name: '刘强东', avatar: '', level: '金牌分销员', sales: 198500, orders: 412, commission: 15880, status: 'active', joinDate: '2025-04-01', phone: '135****5555' },
+];
+
+export async function fetchMarketingStats() {
+  try {
+    const data = await apiRequest('/api/marketing/stats');
+    return { ...data, source: 'api' };
+  } catch {
+    return {
+      activeCampaigns: 8,
+      totalCoupons: 156892,
+      marketingRevenue: 2685400,
+      roi: 4.8,
+      source: 'mock',
+    };
+  }
+}
+
+export async function fetchCoupons(params = {}) {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const data = await apiRequest(`/api/marketing/coupons?${query}`);
+    return { items: data.items || data, total: data.total || data.length, source: 'api' };
+  } catch {
+    return { items: mockCoupons, total: mockCoupons.length, source: 'mock' };
+  }
+}
+
+export async function createCoupon(data) {
+  try {
+    return await apiRequest('/api/marketing/coupons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  } catch {
+    return { success: true, data: { id: Date.now(), ...data, used: 0, status: 'active', createdAt: new Date().toISOString().slice(0, 10) }, source: 'mock' };
+  }
+}
+
+export async function updateCoupon(id, data) {
+  try {
+    return await apiRequest(`/api/marketing/coupons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  } catch {
+    return { success: true, source: 'mock' };
+  }
+}
+
+export async function deleteCoupon(id) {
+  try {
+    return await apiRequest(`/api/marketing/coupons/${id}`, { method: 'DELETE' });
+  } catch {
+    return { success: true, source: 'mock' };
+  }
+}
+
+export async function fetchCampaigns(params = {}) {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const data = await apiRequest(`/api/marketing/campaigns?${query}`);
+    return { items: data.items || data, total: data.total || data.length, source: 'api' };
+  } catch {
+    return { items: mockCampaigns, total: mockCampaigns.length, source: 'mock' };
+  }
+}
+
+export async function createCampaign(data) {
+  try {
+    return await apiRequest('/api/marketing/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  } catch {
+    return { success: true, data: { id: Date.now(), ...data, products: 0, sales: 0, revenue: 0, status: 'pending', participants: 0 }, source: 'mock' };
+  }
+}
+
+export async function deleteCampaign(id) {
+  try {
+    return await apiRequest(`/api/marketing/campaigns/${id}`, { method: 'DELETE' });
+  } catch {
+    return { success: true, source: 'mock' };
+  }
+}
+
+export async function fetchDistributors(params = {}) {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const data = await apiRequest(`/api/marketing/distributors?${query}`);
+    return { items: data.items || data, total: data.total || data.length, source: 'api' };
+  } catch {
+    return { items: mockDistributors, total: mockDistributors.length, source: 'mock' };
+  }
+}
+
+export async function fetchCommissionSettings() {
+  try {
+    const data = await apiRequest('/api/marketing/commission/settings');
+    return { ...data, source: 'api' };
+  } catch {
+    return {
+      goldRate: 8, silverRate: 6, bronzeRate: 4,
+      settlementCycle: 'monthly', freezeDays: 7, minWithdraw: 100,
+      allowSelfPurchase: false, allowSecondLevel: true,
+      source: 'mock',
+    };
+  }
+}
+
+export async function saveCommissionSettings(data) {
+  try {
+    return await apiRequest('/api/marketing/commission/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  } catch {
+    return { success: true, source: 'mock' };
+  }
+}
 
 // ==================== 客户 ====================
 
