@@ -317,6 +317,28 @@ services:
       start_period: 20s
       retries: 3
 
+  # 商品管理服务 (端口 8006, SQLite 独立数据库)
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+    container_name: ecom-product-service
+    restart: unless-stopped
+    ports:
+      - "8006:8006"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - product_data:/app/data
+    networks:
+      - ecom-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
   # ─────────────── 工具服务 ───────────────
 
   # n8n 工作流引擎
@@ -378,6 +400,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  product_data:
     driver: local
 
 networks:

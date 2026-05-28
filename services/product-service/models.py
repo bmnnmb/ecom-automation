@@ -312,9 +312,31 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 
 def init_database():
-    """创建所有表"""
+    """创建所有表（自动检测schema变更并重建）"""
     import os
     os.makedirs("data", exist_ok=True)
+
+    # 检查数据库是否存在且schema是否兼容
+    db_path = DATABASE_URL.replace("sqlite:///./", "")
+    if os.path.exists(db_path):
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(engine)
+            existing_cols = {c["name"] for c in inspector.get_columns("products")} if "products" in inspector.get_table_names() else set()
+            expected_cols = {c.name for c in Product.__table__.columns}
+            missing = expected_cols - existing_cols
+            if missing:
+                print(f"⚠️  检测到schema变更，缺少列: {missing}，重建数据库...")
+                Base.metadata.drop_all(bind=engine)
+                Base.metadata.create_all(bind=engine)
+                print("✅ 数据库schema已重建")
+                return
+        except Exception as e:
+            print(f"⚠️  Schema检测异常({e})，重建数据库...")
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
+            return
+
     Base.metadata.create_all(bind=engine)
 
 
