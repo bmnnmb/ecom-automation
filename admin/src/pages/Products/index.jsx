@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   Card,
@@ -22,6 +22,7 @@ import {
   Divider,
   Typography,
   message,
+  Spin,
 } from 'antd';
 import {
   PlusOutlined,
@@ -51,6 +52,49 @@ import {
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+
+// API 基础路径
+const API_BASE = '/api';
+
+// API 请求封装
+const api = {
+  async get(url, params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const fullUrl = query ? `${API_BASE}${url}?${query}` : `${API_BASE}${url}`;
+    const res = await fetch(fullUrl);
+    if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`);
+    return res.json();
+  },
+  async post(url, body = {}) {
+    const res = await fetch(`${API_BASE}${url}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `POST ${url} failed: ${res.status}`);
+    }
+    return res.json();
+  },
+  async patch(url, body = {}) {
+    const res = await fetch(`${API_BASE}${url}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `PATCH ${url} failed: ${res.status}`);
+    }
+    return res.json();
+  },
+  async delete(url) {
+    const res = await fetch(`${API_BASE}${url}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`DELETE ${url} failed: ${res.status}`);
+    return res.json();
+  },
+};
 
 // 抖音店铺后台风格 - 样式常量
 const styles = {
@@ -121,57 +165,6 @@ const styles = {
   },
 };
 
-// 模拟商品数据
-const generateProducts = (count = 50) => {
-  const platforms = [
-    { key: 'douyin', name: '抖音', color: '#165DFF' },
-    { key: 'pdd', name: '拼多多', color: '#F53F3F' },
-    { key: 'xianyu', name: '闲鱼', color: '#FF7D00' },
-    { key: 'kuaishou', name: '快手', color: '#722ED1' },
-  ];
-  const categories = ['数码配件', '家居日用', '服饰鞋包', '美妆个护', '食品生鲜', '办公用品'];
-  const statusOptions = [
-    { key: 'active', label: '在售', color: 'green' },
-    { key: 'draft', label: '草稿', color: 'default' },
-    { key: 'out_of_stock', label: '缺货', color: 'red' },
-    { key: 'disabled', label: '已下架', color: 'default' },
-  ];
-
-  const products = [];
-  for (let i = 1; i <= count; i++) {
-    const platform = platforms[Math.floor(Math.random() * platforms.length)];
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    const status = statusOptions[Math.floor(Math.random() * statusOptions.length)];
-    const price = Math.floor(Math.random() * 500) + 10;
-    const cost = Math.floor(price * (0.3 + Math.random() * 0.4));
-    const stock = Math.floor(Math.random() * 200);
-    const sales = Math.floor(Math.random() * 1000);
-
-    products.push({
-      id: `SP${String(i).padStart(6, '0')}`,
-      name: `${category}商品${i}`,
-      sku: `SKU${String(i).padStart(4, '0')}`,
-      platform: platform.key,
-      platformName: platform.name,
-      platformColor: platform.color,
-      category,
-      price,
-      cost,
-      profit: price - cost,
-      margin: ((price - cost) / price * 100).toFixed(1),
-      stock,
-      sales,
-      status: status.key,
-      statusLabel: status.label,
-      statusColor: status.color,
-      image: `https://picsum.photos/seed/${i}/80/80`,
-      createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-    });
-  }
-  return products;
-};
-
 // 统计卡片组件 - 渐变背景 + hover效果
 const StatCard = ({ title, value, prefix, gradient, subText, formatter }) => {
   const [hovered, setHovered] = useState(false);
@@ -216,10 +209,9 @@ const StatCard = ({ title, value, prefix, gradient, subText, formatter }) => {
 };
 
 const Products = () => {
-  const [products, setProducts] = useState(() => generateProducts(50));
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [filterVisible, setFilterVisible] = useState(true);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -228,14 +220,16 @@ const Products = () => {
   const [batchPriceForm] = Form.useForm();
 
   // 统计数据
-  const stats = {
-    total: products.length,
-    active: products.filter(p => p.status === 'active').length,
-    lowStock: products.filter(p => p.stock < 20).length,
-    outOfStock: products.filter(p => p.stock === 0).length,
-    todaySales: Math.floor(Math.random() * 100),
-    totalValue: products.reduce((sum, p) => sum + p.price * p.stock, 0),
-  };
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    lowStock: 0,
+    outOfStock: 0,
+    totalValue: 0,
+  });
+
+  // 分页
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
   // 筛选
   const [filters, setFilters] = useState({
@@ -245,12 +239,67 @@ const Products = () => {
     status: 'all',
   });
 
-  // 处理筛选
+  // ============================================================
+  // 数据加载
+  // ============================================================
+
+  const fetchProducts = useCallback(async (page = 1, pageSize = 10) => {
+    setLoading(true);
+    try {
+      const params = { page, page_size: pageSize };
+      if (filters.keyword) params.keyword = filters.keyword;
+      if (filters.platform !== 'all') params.platform = filters.platform;
+      if (filters.category !== 'all') params.category = filters.category;
+      if (filters.status !== 'all') params.status = filters.status;
+
+      const res = await api.get('/products', params);
+      if (res.success) {
+        setProducts(res.data);
+        setPagination({
+          current: res.meta.page,
+          pageSize: res.meta.page_size,
+          total: res.meta.total,
+        });
+      }
+    } catch (err) {
+      console.error('加载商品列表失败:', err);
+      message.error('加载商品列表失败，请检查服务是否启动');
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await api.get('/products/stats');
+      if (res.success) {
+        setStats(res.data);
+      }
+    } catch (err) {
+      console.error('加载统计数据失败:', err);
+    }
+  }, []);
+
+  // 初始加载
+  useEffect(() => {
+    fetchProducts();
+    fetchStats();
+  }, []);
+
+  // 筛选变化时重新加载
+  useEffect(() => {
+    fetchProducts(1, pagination.pageSize);
+    setSelectedRowKeys([]);
+  }, [filters]);
+
+  // ============================================================
+  // 筛选处理
+  // ============================================================
+
   const handleFilter = (changedValues) => {
-    setFilters({ ...filters, ...changedValues });
+    setFilters(prev => ({ ...prev, ...changedValues }));
   };
 
-  // 重置筛选
   const handleReset = () => {
     setFilters({
       keyword: '',
@@ -260,22 +309,9 @@ const Products = () => {
     });
   };
 
-  // 过滤商品
-  const filteredProducts = products.filter((product) => {
-    if (filters.keyword && !product.name.toLowerCase().includes(filters.keyword.toLowerCase()) && !product.sku.toLowerCase().includes(filters.keyword.toLowerCase())) {
-      return false;
-    }
-    if (filters.platform !== 'all' && product.platform !== filters.platform) {
-      return false;
-    }
-    if (filters.category !== 'all' && product.category !== filters.category) {
-      return false;
-    }
-    if (filters.status !== 'all' && product.status !== filters.status) {
-      return false;
-    }
-    return true;
-  });
+  // ============================================================
+  // 商品操作
+  // ============================================================
 
   // 查看商品详情
   const handleView = (product) => {
@@ -294,6 +330,7 @@ const Products = () => {
       price: product.price,
       cost: product.cost,
       stock: product.stock,
+      description: product.description || '',
     });
     setModalVisible(true);
   };
@@ -305,11 +342,40 @@ const Products = () => {
       content: `确定要删除商品"${product.name}"吗？`,
       okText: '确定',
       cancelText: '取消',
-      onOk: () => {
-        setProducts(products.filter(p => p.id !== product.id));
-        message.success('删除成功');
+      onOk: async () => {
+        try {
+          await api.delete(`/products/${product.db_id}`);
+          message.success('删除成功');
+          fetchProducts(pagination.current, pagination.pageSize);
+          fetchStats();
+        } catch (err) {
+          message.error('删除失败: ' + err.message);
+        }
       },
     });
+  };
+
+  // 添加/编辑商品提交
+  const handleFormSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      if (currentProduct) {
+        // 编辑
+        await api.patch(`/products/${currentProduct.db_id}`, values);
+        message.success('更新成功');
+      } else {
+        // 新增
+        await api.post('/products', values);
+        message.success('添加成功');
+      }
+      setModalVisible(false);
+      form.resetFields();
+      fetchProducts(pagination.current, pagination.pageSize);
+      fetchStats();
+    } catch (err) {
+      if (err.errorFields) return; // 表单验证失败
+      message.error('操作失败: ' + err.message);
+    }
   };
 
   // 批量操作
@@ -318,59 +384,60 @@ const Products = () => {
       message.warning('请先选择商品');
       return;
     }
+    const actionLabel = action === 'delete' ? '删除' : '下架';
     Modal.confirm({
-      title: `确认${action === 'delete' ? '删除' : '下架'}`,
-      content: `确定要${action === 'delete' ? '删除' : '下架'}选中的 ${selectedRowKeys.length} 个商品吗？`,
+      title: `确认${actionLabel}`,
+      content: `确定要${actionLabel}选中的 ${selectedRowKeys.length} 个商品吗？`,
       okText: '确定',
       cancelText: '取消',
-      onOk: () => {
-        if (action === 'delete') {
-          setProducts(products.filter(p => !selectedRowKeys.includes(p.id)));
-        } else {
-          setProducts(products.map(p => 
-            selectedRowKeys.includes(p.id) ? { ...p, status: 'disabled', statusLabel: '已下架', statusColor: 'default' } : p
-          ));
+      onOk: async () => {
+        try {
+          await api.post(`/products/batch/${action}`, { product_ids: selectedRowKeys, action });
+          message.success(`${actionLabel}成功`);
+          setSelectedRowKeys([]);
+          fetchProducts(pagination.current, pagination.pageSize);
+          fetchStats();
+        } catch (err) {
+          message.error(`${actionLabel}失败: ` + err.message);
         }
-        setSelectedRowKeys([]);
-        message.success(`${action === 'delete' ? '删除' : '下架'}成功`);
       },
     });
   };
 
   // 批量调价
-  const handleBatchPriceAdjust = () => {
-    batchPriceForm.validateFields().then(values => {
+  const handleBatchPriceAdjust = async () => {
+    try {
+      const values = await batchPriceForm.validateFields();
       if (selectedRowKeys.length === 0) {
         message.warning('请先选择商品');
         return;
       }
-      const { adjustType, adjustValue } = values;
-      setProducts(products.map(p => {
-        if (selectedRowKeys.includes(p.id)) {
-          let newPrice;
-          if (adjustType === 'increase_pct') {
-            newPrice = Math.round(p.price * (1 + adjustValue / 100) * 100) / 100;
-          } else if (adjustType === 'decrease_pct') {
-            newPrice = Math.round(p.price * (1 - adjustValue / 100) * 100) / 100;
-          } else if (adjustType === 'increase_amt') {
-            newPrice = Math.round((p.price + adjustValue) * 100) / 100;
-          } else {
-            newPrice = Math.round(Math.max(p.price - adjustValue, 0) * 100) / 100;
-          }
-          const newProfit = newPrice - p.cost;
-          const newMargin = newPrice > 0 ? ((newProfit / newPrice) * 100).toFixed(1) : '0.0';
-          return { ...p, price: newPrice, profit: newProfit, margin: newMargin, updatedAt: new Date().toISOString() };
-        }
-        return p;
-      }));
+      await api.post('/products/batch/price', {
+        product_ids: selectedRowKeys,
+        adjust_type: values.adjustType,
+        adjust_value: values.adjustValue,
+      });
       setBatchPriceModalVisible(false);
       batchPriceForm.resetFields();
       setSelectedRowKeys([]);
       message.success(`已调整 ${selectedRowKeys.length} 个商品的价格`);
-    });
+      fetchProducts(pagination.current, pagination.pageSize);
+      fetchStats();
+    } catch (err) {
+      if (err.errorFields) return;
+      message.error('调价失败: ' + err.message);
+    }
   };
 
+  // 表格翻页
+  const handleTableChange = (pag) => {
+    fetchProducts(pag.current, pag.pageSize);
+  };
+
+  // ============================================================
   // 表格列配置
+  // ============================================================
+
   const columns = [
     {
       title: '商品信息',
@@ -440,7 +507,7 @@ const Products = () => {
       sorter: (a, b) => a.price - b.price,
       render: (val) => (
         <span style={{ fontWeight: 600, color: '#165DFF', fontSize: 13 }}>
-          ¥{val.toFixed(2)}
+          ¥{Number(val).toFixed(2)}
         </span>
       ),
     },
@@ -449,7 +516,7 @@ const Products = () => {
       dataIndex: 'cost',
       key: 'cost',
       width: 100,
-      render: (val) => <Text type="secondary" style={{ fontSize: 13 }}>¥{val.toFixed(2)}</Text>,
+      render: (val) => <Text type="secondary" style={{ fontSize: 13 }}>¥{Number(val).toFixed(2)}</Text>,
     },
     {
       title: '利润率',
@@ -586,7 +653,7 @@ const Products = () => {
   };
 
   return (
-    <div style={styles.page}>
+    <div className="products-page" style={styles.page}>
       {/* 统计卡片 - 渐变背景 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} md={6}>
@@ -610,7 +677,7 @@ const Products = () => {
         <Col xs={24} sm={12} md={6}>
           <StatCard
             title="今日销量"
-            value={stats.todaySales}
+            value={Math.floor(Math.random() * 100)}
             prefix={<FireOutlined />}
             gradient="linear-gradient(135deg, #00B42A 0%, #52C41A 100%)"
             subText="较昨日 +12.5%"
@@ -735,21 +802,20 @@ const Products = () => {
 
           <Table
             columns={columns}
-            dataSource={filteredProducts}
-            rowKey="id"
+            dataSource={products}
+            rowKey="db_id"
             rowSelection={rowSelection}
             loading={loading}
             size="middle"
             pagination={{
-              total: filteredProducts.length,
-              pageSize: 10,
+              ...pagination,
               showSizeChanger: true,
               showQuickJumper: true,
               showTotal: (total) => <span style={{ color: '#86909C' }}>共 {total} 条数据</span>,
               style: { marginTop: 16 },
             }}
+            onChange={handleTableChange}
             scroll={{ x: 1200 }}
-            style={{ marginTop: selectedRowKeys.length > 0 ? 0 : 0 }}
             rowClassName={(_, index) => index % 2 === 1 ? 'products-table-row-striped' : ''}
           />
         </div>
@@ -854,8 +920,8 @@ const Products = () => {
             }}>
               {[
                 { label: 'SKU', value: currentProduct.sku, color: '#1D2129' },
-                { label: '售价', value: `¥${currentProduct.price.toFixed(2)}`, color: '#165DFF', fontWeight: 600 },
-                { label: '成本', value: `¥${currentProduct.cost.toFixed(2)}`, color: '#4E5969' },
+                { label: '售价', value: `¥${Number(currentProduct.price).toFixed(2)}`, color: '#165DFF', fontWeight: 600 },
+                { label: '成本', value: `¥${Number(currentProduct.cost).toFixed(2)}`, color: '#4E5969' },
                 { label: '利润率', value: `${currentProduct.margin}%`, color: parseFloat(currentProduct.margin) > 40 ? '#00B42A' : '#FF7D00', fontWeight: 600 },
                 { label: '库存', value: currentProduct.stock, color: currentProduct.stock < 20 ? '#FF7D00' : '#00B42A', fontWeight: 600 },
                 { label: '销量', value: currentProduct.sales, color: '#1D2129' },
@@ -882,11 +948,11 @@ const Products = () => {
               <Row gutter={[16, 8]}>
                 <Col span={12}>
                   <div style={{ fontSize: 12, color: '#86909C', marginBottom: 4 }}>创建时间</div>
-                  <div style={{ fontSize: 13, color: '#4E5969' }}>{new Date(currentProduct.createdAt).toLocaleString()}</div>
+                  <div style={{ fontSize: 13, color: '#4E5969' }}>{currentProduct.createdAt ? new Date(currentProduct.createdAt).toLocaleString() : '-'}</div>
                 </Col>
                 <Col span={12}>
                   <div style={{ fontSize: 12, color: '#86909C', marginBottom: 4 }}>更新时间</div>
-                  <div style={{ fontSize: 13, color: '#4E5969' }}>{new Date(currentProduct.updatedAt).toLocaleString()}</div>
+                  <div style={{ fontSize: 13, color: '#4E5969' }}>{currentProduct.updatedAt ? new Date(currentProduct.updatedAt).toLocaleString() : '-'}</div>
                 </Col>
               </Row>
             </div>
@@ -903,33 +969,7 @@ const Products = () => {
         }
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
-        onOk={() => {
-          form.validateFields().then(values => {
-            if (currentProduct) {
-              setProducts(products.map(p => 
-                p.id === currentProduct.id ? { ...p, ...values } : p
-              ));
-              message.success('更新成功');
-            } else {
-              const newProduct = {
-                id: `SP${String(products.length + 1).padStart(6, '0')}`,
-                ...values,
-                profit: values.price - values.cost,
-                margin: ((values.price - values.cost) / values.price * 100).toFixed(1),
-                sales: 0,
-                status: 'active',
-                statusLabel: '在售',
-                statusColor: 'green',
-                image: `https://picsum.photos/seed/${Date.now()}/80/80`,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
-              setProducts([newProduct, ...products]);
-              message.success('添加成功');
-            }
-            setModalVisible(false);
-          });
-        }}
+        onOk={handleFormSubmit}
         width={600}
         okText="确定"
         cancelText="取消"
@@ -1007,6 +1047,7 @@ const Products = () => {
           </Form.Item>
         </Form>
       </Modal>
+
       {/* 批量调价弹窗 */}
       <Modal
         title={
