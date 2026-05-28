@@ -1,0 +1,105 @@
+# ============================================
+# 生产环境覆盖配置
+# ============================================
+# 使用方法:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================
+
+services:
+  postgres:
+    command: postgres -c shared_buffers=256MB -c effective_cache_size=768MB -c work_mem=4MB -c maintenance_work_mem=128MB -c max_connections=200
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+
+  redis:
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --save 60 1000 --tcp-backlog 511
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  api-gateway:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+      replicas: 2
+
+  douyin-adapter:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  kuaishou-adapter:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  pdd-cs-adapter:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  xianyu-adapter:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  oms-service:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  rag-service:
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+
+  hermes-control:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  competitor-crawler:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  n8n:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  metabase:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'

@@ -53,6 +53,7 @@ Thumbs.db
 
 # Docker
 docker-compose.yml
+docker-compose.*.yml
 .dockerignore
 
 # Documentation (not needed in runtime)
@@ -69,3 +70,20 @@ database/
 skills/
 config/
 scripts/
+
+# Environment files (secrets - use env vars at runtime)
+.env
+.env.*
+!requirements.txt
+
+# Admin frontend source (pre-built dist is included)
+admin/src/
+admin/vite.config.js
+admin/package.json
+admin/package-lock.json
+admin/.module-check-state
+admin/.style-optimize-state
+
+# Service-level env files
+services/*/.env
+services/*/.env.example
