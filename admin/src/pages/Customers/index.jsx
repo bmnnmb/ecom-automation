@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Row,
   Col,
@@ -16,7 +16,6 @@ import {
   Drawer,
   Descriptions,
   Tabs,
-  List,
   Progress,
   Modal,
   Form,
@@ -37,73 +36,30 @@ import {
   StarOutlined,
   ShoppingCartOutlined,
   DollarOutlined,
-  ClockCircleOutlined,
-  TagOutlined,
-  PhoneOutlined,
-  MailOutlined,
   EnvironmentOutlined,
   ManOutlined,
   WomanOutlined,
   FilterOutlined,
   ExportOutlined,
   ImportOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  TagOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import {
+  fetchCustomerStats,
+  fetchCustomers,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer,
+} from '../../api';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 const { TabPane } = Tabs;
-
-// 模拟客户数据
-const generateCustomers = () => {
-  const levels = ['普通', '银卡', '金卡', '钻石'];
-  const tags = ['新客户', '活跃', '沉睡', '流失'];
-  const customers = [];
-
-  for (let i = 1; i <= 50; i++) {
-    const level = levels[Math.floor(Math.random() * levels.length)];
-    const customerTags = [];
-    if (Math.random() > 0.5) customerTags.push(tags[Math.floor(Math.random() * tags.length)]);
-    if (Math.random() > 0.7) customerTags.push(tags[Math.floor(Math.random() * tags.length)]);
-
-    customers.push({
-      key: i,
-      id: `C${String(i).padStart(6, '0')}`,
-      name: `客户${i}`,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`,
-      phone: `1${3 + Math.floor(Math.random() * 6)}${String(Math.random()).slice(2, 11)}`,
-      email: `customer${i}@example.com`,
-      gender: Math.random() > 0.5 ? '男' : '女',
-      level,
-      tags: [...new Set(customerTags)],
-      totalSpent: Math.floor(Math.random() * 50000) + 1000,
-      orderCount: Math.floor(Math.random() * 50) + 1,
-      lastOrderTime: dayjs().subtract(Math.floor(Math.random() * 30), 'day').format('YYYY-MM-DD HH:mm'),
-      registerTime: dayjs().subtract(Math.floor(Math.random() * 365), 'day').format('YYYY-MM-DD'),
-      address: `北京市朝阳区某某街道${i}号`,
-      points: Math.floor(Math.random() * 10000),
-      balance: Math.floor(Math.random() * 5000),
-    });
-  }
-  return customers;
-};
-
-// 模拟订单数据
-const generateOrders = () => {
-  const orders = [];
-  for (let i = 1; i <= 10; i++) {
-    orders.push({
-      key: i,
-      orderId: `ORD${String(i).padStart(8, '0')}`,
-      amount: Math.floor(Math.random() * 2000) + 100,
-      status: ['已完成', '待发货', '已发货', '已取消'][Math.floor(Math.random() * 4)],
-      time: dayjs().subtract(Math.floor(Math.random() * 30), 'day').format('YYYY-MM-DD HH:mm'),
-      products: Math.floor(Math.random() * 5) + 1,
-    });
-  }
-  return orders;
-};
 
 // 获取等级对应的图标和颜色
 const getLevelInfo = (level) => {
@@ -123,8 +79,26 @@ const getTagColor = (tag) => {
     '活跃': 'green',
     '沉睡': 'orange',
     '流失': 'red',
+    'VIP': 'purple',
+    '高价值': 'gold',
   };
   return tagColors[tag] || 'default';
+};
+
+// 模拟订单数据（订单API暂未对接，保留mock）
+const generateOrders = () => {
+  const orders = [];
+  for (let i = 1; i <= 10; i++) {
+    orders.push({
+      key: i,
+      orderId: `ORD${String(i).padStart(8, '0')}`,
+      amount: Math.floor(Math.random() * 2000) + 100,
+      status: ['已完成', '待发货', '已发货', '已取消'][Math.floor(Math.random() * 4)],
+      time: dayjs().subtract(Math.floor(Math.random() * 30), 'day').format('YYYY-MM-DD HH:mm'),
+      products: Math.floor(Math.random() * 5) + 1,
+    });
+  }
+  return orders;
 };
 
 export default function Customers() {
@@ -135,7 +109,7 @@ export default function Customers() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('add'); // 'add' | 'edit'
   const [form] = Form.useForm();
-  const [orders, setOrders] = useState([]);
+  const [orders] = useState(() => generateOrders());
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [batchTagModalVisible, setBatchTagModalVisible] = useState(false);
   const [batchTagForm] = Form.useForm();
@@ -162,62 +136,62 @@ export default function Customers() {
     vipCustomers: 0,
   });
 
-  useEffect(() => {
-    // 模拟加载数据
+  // 加载客户列表
+  const loadCustomers = useCallback(async (page = 1, pageSize = 10) => {
     setLoading(true);
-    setTimeout(() => {
-      const data = generateCustomers();
-      setCustomers(data);
-      setOrders(generateOrders());
+    try {
+      const params = { page, page_size: pageSize };
+      if (filters.keyword) params.keyword = filters.keyword;
+      if (filters.level) params.level = filters.level;
 
-      // 计算统计数据
-      const total = data.length;
-      const newCustomers = data.filter(c => c.tags.includes('新客户')).length;
-      const activeCustomers = data.filter(c => c.tags.includes('活跃')).length;
-      const vipCustomers = data.filter(c => ['金卡', '钻石'].includes(c.level)).length;
-
-      setStats({ total, newCustomers, activeCustomers, vipCustomers });
-      setPagination(prev => ({ ...prev, total }));
+      const result = await fetchCustomers(params);
+      setCustomers(result.items || []);
+      setPagination(prev => ({
+        ...prev,
+        current: page,
+        pageSize,
+        total: result.total || 0,
+      }));
+    } catch (err) {
+      console.error('加载客户列表失败:', err);
+      message.error('加载客户列表失败');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  }, [filters.keyword, filters.level]);
+
+  // 加载统计数据
+  const loadStats = async () => {
+    try {
+      const data = await fetchCustomerStats();
+      setStats({
+        total: data.total || 0,
+        newCustomers: data.newCustomers || 0,
+        activeCustomers: data.activeCustomers || 0,
+        vipCustomers: data.vipCustomers || 0,
+      });
+    } catch (err) {
+      console.error('加载统计失败:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadCustomers();
+    loadStats();
   }, []);
 
   // 处理筛选
   const handleFilter = () => {
-    let filtered = [...customers];
-
-    if (filters.keyword) {
-      const keyword = filters.keyword.toLowerCase();
-      filtered = filtered.filter(
-        c =>
-          c.name.toLowerCase().includes(keyword) ||
-          c.phone.includes(keyword) ||
-          c.id.toLowerCase().includes(keyword)
-      );
-    }
-
-    if (filters.level) {
-      filtered = filtered.filter(c => c.level === filters.level);
-    }
-
-    if (filters.dateRange && filters.dateRange.length === 2) {
-      const [start, end] = filters.dateRange;
-      filtered = filtered.filter(c => {
-        const registerDate = dayjs(c.registerTime);
-        return registerDate.isAfter(start) && registerDate.isBefore(end);
-      });
-    }
-
-    setCustomers(filtered);
-    setPagination(prev => ({ ...prev, total: filtered.length, current: 1 }));
+    loadCustomers(1, pagination.pageSize);
   };
 
   // 重置筛选
   const handleReset = () => {
     setFilters({ keyword: '', level: undefined, dateRange: null });
-    const data = generateCustomers();
-    setCustomers(data);
-    setPagination(prev => ({ ...prev, total: data.length, current: 1 }));
+    // 延迟一帧等状态更新后再加载
+    setTimeout(() => {
+      loadCustomers(1, pagination.pageSize);
+    }, 0);
   };
 
   // 查看客户详情
@@ -231,8 +205,12 @@ export default function Customers() {
     setSelectedCustomer(record);
     setModalType('edit');
     form.setFieldsValue({
-      ...record,
-      registerTime: dayjs(record.registerTime),
+      name: record.name,
+      phone: record.phone,
+      email: record.email,
+      gender: record.gender,
+      level: record.level,
+      address: record.address,
     });
     setModalVisible(true);
   };
@@ -245,40 +223,91 @@ export default function Customers() {
     setModalVisible(true);
   };
 
-  // 提交表单
+  // 提交表单（调用真实API）
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       if (modalType === 'add') {
-        const newCustomer = {
-          ...values,
-          key: customers.length + 1,
-          id: `C${String(customers.length + 1).padStart(6, '0')}`,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${customers.length + 1}`,
-          registerTime: values.registerTime.format('YYYY-MM-DD'),
-          totalSpent: 0,
-          orderCount: 0,
-          lastOrderTime: '-',
-          points: 0,
-          balance: 0,
+        const result = await createCustomer({
+          name: values.name,
+          phone: values.phone,
+          email: values.email,
+          gender: values.gender,
+          level: values.level || '普通',
+          address: values.address || '',
           tags: ['新客户'],
-        };
-        setCustomers([newCustomer, ...customers]);
-        message.success('客户添加成功');
+        });
+        if (result.success) {
+          message.success('客户添加成功');
+          setModalVisible(false);
+          form.resetFields();
+          loadCustomers(pagination.current, pagination.pageSize);
+          loadStats();
+        } else {
+          message.error(result.message || '添加失败');
+        }
       } else {
-        const updatedCustomers = customers.map(c =>
-          c.key === selectedCustomer.key
-            ? { ...c, ...values, registerTime: values.registerTime.format('YYYY-MM-DD') }
-            : c
-        );
-        setCustomers(updatedCustomers);
-        message.success('客户信息更新成功');
+        const result = await updateCustomer(selectedCustomer.db_id, {
+          name: values.name,
+          phone: values.phone,
+          email: values.email,
+          gender: values.gender,
+          level: values.level,
+          address: values.address,
+        });
+        if (result.success) {
+          message.success('客户信息更新成功');
+          setModalVisible(false);
+          form.resetFields();
+          loadCustomers(pagination.current, pagination.pageSize);
+        } else {
+          message.error(result.message || '更新失败');
+        }
       }
-      setModalVisible(false);
-      form.resetFields();
     } catch (error) {
       console.error('表单验证失败:', error);
     }
+  };
+
+  // 删除客户
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除客户 "${record.name}" 吗？此操作不可恢复。`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        const result = await deleteCustomer(record.db_id);
+        if (result.success) {
+          message.success('客户已删除');
+          loadCustomers(pagination.current, pagination.pageSize);
+          loadStats();
+        } else {
+          message.error(result.message || '删除失败');
+        }
+      },
+    });
+  };
+
+  // 批量删除
+  const handleBatchDelete = () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个客户吗？此操作不可恢复。`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        let success = 0;
+        for (const dbId of selectedRowKeys) {
+          const result = await deleteCustomer(dbId);
+          if (result.success) success++;
+        }
+        message.success(`已删除 ${success} 个客户`);
+        setSelectedRowKeys([]);
+        loadCustomers(pagination.current, pagination.pageSize);
+        loadStats();
+      },
+    });
   };
 
   // 发送消息
@@ -334,17 +363,17 @@ export default function Customers() {
       render: (_, record) => (
         <div>
           <div>
-            <Text strong>¥{record.totalSpent.toLocaleString()}</Text>
+            <Text strong>¥{(record.totalSpent || 0).toLocaleString()}</Text>
             <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-              {record.orderCount}单
+              {record.orderCount || 0}单
             </Text>
           </div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            最近: {record.lastOrderTime}
+            最近: {record.lastOrderTime || '-'}
           </Text>
         </div>
       ),
-      sorter: (a, b) => a.totalSpent - b.totalSpent,
+      sorter: (a, b) => (a.totalSpent || 0) - (b.totalSpent || 0),
     },
     {
       title: '标签',
@@ -353,7 +382,7 @@ export default function Customers() {
       width: 150,
       render: (tags) => (
         <Space size={[0, 4]} wrap>
-          {tags.map((tag) => (
+          {(tags || []).map((tag) => (
             <Tag key={tag} color={getTagColor(tag)}>
               {tag}
             </Tag>
@@ -366,12 +395,12 @@ export default function Customers() {
       dataIndex: 'registerTime',
       key: 'registerTime',
       width: 120,
-      sorter: (a, b) => dayjs(a.registerTime).unix() - dayjs(b.registerTime).unix(),
+      sorter: (a, b) => dayjs(a.registerTime || 0).unix() - dayjs(b.registerTime || 0).unix(),
     },
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 200,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
@@ -385,9 +414,9 @@ export default function Customers() {
               编辑
             </Button>
           </Tooltip>
-          <Tooltip title="发送消息">
-            <Button type="link" icon={<MessageOutlined />} onClick={() => handleSendMessage(record)}>
-              消息
+          <Tooltip title="删除客户">
+            <Button type="link" danger onClick={() => handleDelete(record)}>
+              删除
             </Button>
           </Tooltip>
         </Space>
@@ -397,22 +426,14 @@ export default function Customers() {
 
   // 订单表格列配置
   const orderColumns = [
-    {
-      title: '订单号',
-      dataIndex: 'orderId',
-      key: 'orderId',
-    },
+    { title: '订单号', dataIndex: 'orderId', key: 'orderId' },
     {
       title: '金额',
       dataIndex: 'amount',
       key: 'amount',
       render: (val) => `¥${val.toLocaleString()}`,
     },
-    {
-      title: '商品数',
-      dataIndex: 'products',
-      key: 'products',
-    },
+    { title: '商品数', dataIndex: 'products', key: 'products' },
     {
       title: '状态',
       dataIndex: 'status',
@@ -427,12 +448,17 @@ export default function Customers() {
         return <Badge status={statusColors[status]} text={status} />;
       },
     },
-    {
-      title: '下单时间',
-      dataIndex: 'time',
-      key: 'time',
-    },
+    { title: '下单时间', dataIndex: 'time', key: 'time' },
   ];
+
+  // 分群分析计数
+  const segmentCounts = {
+    highValue: customers.filter(c => (c.totalSpent || 0) > 30000).length,
+    active: customers.filter(c => (c.tags || []).includes('活跃')).length,
+    sleeping: customers.filter(c => (c.tags || []).includes('沉睡')).length,
+    churning: customers.filter(c => (c.tags || []).includes('流失')).length,
+    newCustomers: customers.filter(c => (c.tags || []).includes('新客户')).length,
+  };
 
   return (
     <div className="customers-page">
@@ -443,6 +469,9 @@ export default function Customers() {
           客户中心
         </Title>
         <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => { loadCustomers(); loadStats(); }}>
+            刷新
+          </Button>
           <Button icon={<ImportOutlined />}>导入</Button>
           <Button icon={<ExportOutlined />}>导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
@@ -461,24 +490,16 @@ export default function Customers() {
               prefix={<TeamOutlined style={{ color: '#165DFF' }} />}
               valueStyle={{ color: '#165DFF' }}
             />
-            <div style={{ marginTop: 8 }}>
-              <Text type="secondary">较昨日 +12</Text>
-              <Tag color="green" style={{ marginLeft: 8 }}>+5.2%</Tag>
-            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="新增客户"
+              title="新增客户(30天)"
               value={stats.newCustomers}
               prefix={<UserOutlined style={{ color: '#00B42A' }} />}
               valueStyle={{ color: '#00B42A' }}
             />
-            <div style={{ marginTop: 8 }}>
-              <Text type="secondary">本周新增</Text>
-              <Tag color="green" style={{ marginLeft: 8 }}>+8.3%</Tag>
-            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -489,10 +510,6 @@ export default function Customers() {
               prefix={<ShoppingCartOutlined style={{ color: '#FF7D00' }} />}
               valueStyle={{ color: '#FF7D00' }}
             />
-            <div style={{ marginTop: 8 }}>
-              <Text type="secondary">近30天有购买</Text>
-              <Tag color="orange" style={{ marginLeft: 8 }}>+2.1%</Tag>
-            </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -503,10 +520,6 @@ export default function Customers() {
               prefix={<CrownOutlined style={{ color: '#722ED1' }} />}
               valueStyle={{ color: '#722ED1' }}
             />
-            <div style={{ marginTop: 8 }}>
-              <Text type="secondary">金卡/钻石会员</Text>
-              <Tag color="purple" style={{ marginLeft: 8 }}>+3.5%</Tag>
-            </div>
           </Card>
         </Col>
       </Row>
@@ -518,11 +531,11 @@ export default function Customers() {
         </div>
         <Row gutter={[16, 8]}>
           {[
-            { label: '高价值客户', count: customers.filter(c => c.totalSpent > 30000).length, color: '#722ED1', bg: '#F9F0FF', desc: '消费>3万' },
-            { label: '活跃客户', count: customers.filter(c => c.tags.includes('活跃')).length, color: '#00B42A', bg: '#E8FFEA', desc: '近30天购买' },
-            { label: '沉睡客户', count: customers.filter(c => c.tags.includes('沉睡')).length, color: '#FF7D00', bg: '#FFF7E8', desc: '需唤醒' },
-            { label: '流失风险', count: customers.filter(c => c.tags.includes('流失')).length, color: '#F53F3F', bg: '#FFECE8', desc: '需挽回' },
-            { label: '新客户', count: customers.filter(c => c.tags.includes('新客户')).length, color: '#165DFF', bg: '#E8F3FF', desc: '首次购买' },
+            { label: '高价值客户', count: segmentCounts.highValue, color: '#722ED1', bg: '#F9F0FF', desc: '消费>3万' },
+            { label: '活跃客户', count: segmentCounts.active, color: '#00B42A', bg: '#E8FFEA', desc: '近30天购买' },
+            { label: '沉睡客户', count: segmentCounts.sleeping, color: '#FF7D00', bg: '#FFF7E8', desc: '需唤醒' },
+            { label: '流失风险', count: segmentCounts.churning, color: '#F53F3F', bg: '#FFECE8', desc: '需挽回' },
+            { label: '新客户', count: segmentCounts.newCustomers, color: '#165DFF', bg: '#E8F3FF', desc: '首次购买' },
           ].map((item, idx) => (
             <Col key={idx} xs={12} sm={8} md={4} lg={4} style={{ textAlign: 'center' }}>
               <div style={{
@@ -550,6 +563,7 @@ export default function Customers() {
               prefix={<SearchOutlined />}
               value={filters.keyword}
               onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+              onPressEnter={handleFilter}
               allowClear
             />
           </Col>
@@ -613,19 +627,7 @@ export default function Customers() {
               }}>
                 批量发消息
               </Button>
-              <Button size="small" danger onClick={() => {
-                Modal.confirm({
-                  title: '确认删除',
-                  content: `确定要删除选中的 ${selectedRowKeys.length} 个客户吗？此操作不可恢复。`,
-                  okText: '确定',
-                  cancelText: '取消',
-                  onOk: () => {
-                    setCustomers(customers.filter(c => !selectedRowKeys.includes(c.key)));
-                    setSelectedRowKeys([]);
-                    message.success('批量删除成功');
-                  },
-                });
-              }}>
+              <Button size="small" danger onClick={handleBatchDelete}>
                 批量删除
               </Button>
               <Button size="small" type="link" onClick={() => setSelectedRowKeys([])}>
@@ -649,10 +651,13 @@ export default function Customers() {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
-            onChange: (page, pageSize) => setPagination({ ...pagination, current: page, pageSize }),
+            onChange: (page, pageSize) => {
+              setPagination(prev => ({ ...prev, current: page, pageSize }));
+              loadCustomers(page, pageSize);
+            },
           }}
           scroll={{ x: 1200 }}
-          rowKey="key"
+          rowKey="db_id"
         />
       </Card>
 
@@ -664,7 +669,7 @@ export default function Customers() {
         onClose={() => setDrawerVisible(false)}
         extra={
           <Space>
-            <Button onClick={() => handleEdit(selectedCustomer)}>编辑</Button>
+            <Button onClick={() => { setDrawerVisible(false); handleEdit(selectedCustomer); }}>编辑</Button>
             <Button type="primary" onClick={() => handleSendMessage(selectedCustomer)}>
               发送消息
             </Button>
@@ -680,12 +685,12 @@ export default function Customers() {
                 {selectedCustomer.name}
                 {selectedCustomer.gender === '男' ? (
                   <ManOutlined style={{ color: '#165DFF', marginLeft: 8 }} />
-                ) : (
+                ) : selectedCustomer.gender === '女' ? (
                   <WomanOutlined style={{ color: '#F53F3F', marginLeft: 8 }} />
-                )}
+                ) : null}
               </Title>
               <Space size={[0, 8]} wrap style={{ marginTop: 8 }}>
-                {selectedCustomer.tags.map((tag) => (
+                {(selectedCustomer.tags || []).map((tag) => (
                   <Tag key={tag} color={getTagColor(tag)}>
                     {tag}
                   </Tag>
@@ -710,11 +715,11 @@ export default function Customers() {
                   <Descriptions.Item label="积分">{selectedCustomer.points}</Descriptions.Item>
                   <Descriptions.Item label="地址" span={2}>
                     <EnvironmentOutlined style={{ marginRight: 8 }} />
-                    {selectedCustomer.address}
+                    {selectedCustomer.address || '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="账户余额" span={2}>
                     <Text strong style={{ color: '#165DFF' }}>
-                      ¥{selectedCustomer.balance.toLocaleString()}
+                      ¥{(selectedCustomer.balance || 0).toLocaleString()}
                     </Text>
                   </Descriptions.Item>
                 </Descriptions>
@@ -726,7 +731,7 @@ export default function Customers() {
                     <Card>
                       <Statistic
                         title="消费总额"
-                        value={selectedCustomer.totalSpent}
+                        value={selectedCustomer.totalSpent || 0}
                         prefix={<DollarOutlined style={{ color: '#165DFF' }} />}
                         suffix="元"
                       />
@@ -736,7 +741,7 @@ export default function Customers() {
                     <Card>
                       <Statistic
                         title="订单总数"
-                        value={selectedCustomer.orderCount}
+                        value={selectedCustomer.orderCount || 0}
                         prefix={<ShoppingCartOutlined style={{ color: '#00B42A' }} />}
                         suffix="单"
                       />
@@ -748,7 +753,7 @@ export default function Customers() {
                     <Text>消费等级进度</Text>
                   </div>
                   <Progress
-                    percent={Math.min((selectedCustomer.totalSpent / 50000) * 100, 100)}
+                    percent={Math.min(((selectedCustomer.totalSpent || 0) / 50000) * 100, 100)}
                     status="active"
                     strokeColor={{
                       '0%': '#165DFF',
@@ -756,7 +761,7 @@ export default function Customers() {
                     }}
                   />
                   <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-                    <Text type="secondary">当前: ¥{selectedCustomer.totalSpent.toLocaleString()}</Text>
+                    <Text type="secondary">当前: ¥{(selectedCustomer.totalSpent || 0).toLocaleString()}</Text>
                     <Text type="secondary">目标: ¥50,000</Text>
                   </div>
                 </Card>
@@ -777,14 +782,19 @@ export default function Customers() {
                   <Text strong>当前标签</Text>
                   <div style={{ marginTop: 8 }}>
                     <Space size={[0, 8]} wrap>
-                      {selectedCustomer.tags.map((tag) => (
+                      {(selectedCustomer.tags || []).map((tag) => (
                         <Tag
                           key={tag}
                           color={getTagColor(tag)}
                           closable
-                          onClose={() => {
-                            const newTags = selectedCustomer.tags.filter((t) => t !== tag);
-                            setSelectedCustomer({ ...selectedCustomer, tags: newTags });
+                          onClose={async () => {
+                            const newTags = (selectedCustomer.tags || []).filter((t) => t !== tag);
+                            const result = await updateCustomer(selectedCustomer.db_id, { tags: newTags });
+                            if (result.success) {
+                              setSelectedCustomer({ ...selectedCustomer, tags: newTags });
+                              loadCustomers(pagination.current, pagination.pageSize);
+                              message.success('标签已更新');
+                            }
                           }}
                         >
                           {tag}
@@ -802,12 +812,15 @@ export default function Customers() {
                         <Tag
                           key={tag}
                           style={{ cursor: 'pointer' }}
-                          onClick={() => {
-                            if (!selectedCustomer.tags.includes(tag)) {
-                              setSelectedCustomer({
-                                ...selectedCustomer,
-                                tags: [...selectedCustomer.tags, tag],
-                              });
+                          onClick={async () => {
+                            if (!(selectedCustomer.tags || []).includes(tag)) {
+                              const newTags = [...(selectedCustomer.tags || []), tag];
+                              const result = await updateCustomer(selectedCustomer.db_id, { tags: newTags });
+                              if (result.success) {
+                                setSelectedCustomer({ ...selectedCustomer, tags: newTags });
+                                loadCustomers(pagination.current, pagination.pageSize);
+                                message.success('标签已添加');
+                              }
                             }
                           }}
                         >
@@ -890,11 +903,6 @@ export default function Customers() {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="registerTime" label="注册时间">
-                <DatePicker style={{ width: '100%' }} placeholder="请选择注册时间" />
-              </Form.Item>
-            </Col>
           </Row>
           <Form.Item name="address" label="地址">
             <Input.TextArea rows={2} placeholder="请输入详细地址" />
@@ -906,23 +914,25 @@ export default function Customers() {
       <Modal
         title="批量打标签"
         open={batchTagModalVisible}
-        onOk={() => {
+        onOk={async () => {
           const selectedTags = batchTagForm.getFieldValue('tags') || [];
           if (selectedTags.length === 0) {
             message.warning('请至少选择一个标签');
             return;
           }
-          setCustomers(customers.map(c => {
-            if (selectedRowKeys.includes(c.key)) {
-              const newTags = [...new Set([...c.tags, ...selectedTags])];
-              return { ...c, tags: newTags };
-            }
-            return c;
-          }));
+          let success = 0;
+          for (const dbId of selectedRowKeys) {
+            const customer = customers.find(c => c.db_id === dbId);
+            if (!customer) continue;
+            const newTags = [...new Set([...(customer.tags || []), ...selectedTags])];
+            const result = await updateCustomer(dbId, { tags: newTags });
+            if (result.success) success++;
+          }
           setBatchTagModalVisible(false);
           batchTagForm.resetFields();
           setSelectedRowKeys([]);
-          message.success(`已为 ${selectedRowKeys.length} 个客户添加标签`);
+          message.success(`已为 ${success} 个客户添加标签`);
+          loadCustomers(pagination.current, pagination.pageSize);
         }}
         onCancel={() => {
           setBatchTagModalVisible(false);

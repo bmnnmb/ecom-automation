@@ -152,6 +152,84 @@ export async function fetchDashboardTrend(days = 7) {
 
 // ==================== 竞品 ====================
 
+// ==================== 客户 ====================
+
+const CUSTOMER_API_BASE = import.meta.env.VITE_CUSTOMER_API_BASE || 'http://localhost:8006';
+
+async function customerApiRequest(endpoint, options = {}) {
+  const url = `${CUSTOMER_API_BASE}${endpoint}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (!res.ok) throw new Error(`Customer API Error: ${res.status}`);
+  return await res.json();
+}
+
+export async function fetchCustomerStats() {
+  try {
+    const json = await customerApiRequest('/api/customers/stats');
+    return { ...json.data, source: 'api' };
+  } catch {
+    return { total: 0, newCustomers: 0, activeCustomers: 0, vipCustomers: 0, source: 'mock' };
+  }
+}
+
+export async function fetchCustomers(params = {}) {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const json = await customerApiRequest(`/api/customers?${query}`);
+    return { items: json.data, total: json.meta?.total || json.data.length, meta: json.meta, source: 'api' };
+  } catch {
+    return { items: [], total: 0, source: 'mock' };
+  }
+}
+
+export async function fetchCustomerDetail(dbId) {
+  try {
+    const json = await customerApiRequest(`/api/customers/${dbId}`);
+    return { ...json.data, source: 'api' };
+  } catch {
+    return null;
+  }
+}
+
+export async function createCustomer(data) {
+  try {
+    const json = await customerApiRequest('/api/customers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return json;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+export async function updateCustomer(dbId, data) {
+  try {
+    const json = await customerApiRequest(`/api/customers/${dbId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return json;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+export async function deleteCustomer(dbId) {
+  try {
+    const json = await customerApiRequest(`/api/customers/${dbId}`, {
+      method: 'DELETE',
+    });
+    return json;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
 export async function fetchCompetitors() {
   if (!apiAvailable) {
     return { items: generateCompetitors(20), source: 'mock' };

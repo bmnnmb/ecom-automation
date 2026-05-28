@@ -19,7 +19,7 @@ import uvicorn
 # 确保导入路径正确
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import Product, Category, init_database, get_db, engine, SessionLocal
+from models import Product, Category, Customer, init_database, get_db, engine, SessionLocal
 
 # ============================================================
 # Pydantic 请求/响应模型
@@ -56,6 +56,38 @@ class CategoryCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="分类名称")
     parent_id: Optional[int] = Field(None, description="父分类ID")
     sort_order: int = Field(0, description="排序序号")
+
+
+class CustomerCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="客户姓名")
+    phone: Optional[str] = Field(None, max_length=20, description="手机号")
+    email: Optional[str] = Field(None, max_length=200, description="邮箱")
+    gender: Optional[str] = Field(None, description="性别: 男/女")
+    level: Optional[str] = Field("普通", description="客户等级: 普通/银卡/金卡/钻石")
+    tags: Optional[List[str]] = Field([], description="标签列表")
+    avatar: Optional[str] = Field("", description="头像URL")
+    address: Optional[str] = Field("", description="地址")
+    total_spent: Optional[float] = Field(0, ge=0, description="累计消费")
+    order_count: Optional[int] = Field(0, ge=0, description="订单数")
+    last_order_time: Optional[str] = Field("-", description="最近下单时间")
+    points: Optional[int] = Field(0, ge=0, description="积分")
+    balance: Optional[float] = Field(0, ge=0, description="账户余额")
+
+
+class CustomerUpdateRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    phone: Optional[str] = Field(None, max_length=20)
+    email: Optional[str] = Field(None, max_length=200)
+    gender: Optional[str] = None
+    level: Optional[str] = None
+    tags: Optional[List[str]] = None
+    avatar: Optional[str] = None
+    address: Optional[str] = None
+    total_spent: Optional[float] = Field(None, ge=0)
+    order_count: Optional[int] = Field(None, ge=0)
+    last_order_time: Optional[str] = None
+    points: Optional[int] = Field(None, ge=0)
+    balance: Optional[float] = Field(None, ge=0)
 
 
 class BatchPriceAdjustRequest(BaseModel):
@@ -156,6 +188,72 @@ def seed_sample_products(db: Session):
     db.commit()
 
 
+def seed_sample_customers(db: Session):
+    """初始化示例客户数据（仅当表为空时）"""
+    import json
+    import random as rnd
+    if db.query(Customer).count() > 0:
+        return
+
+    rnd.seed(123)
+    surnames = ["张", "李", "王", "赵", "陈", "刘", "杨", "黄", "周", "吴", "孙", "马", "朱", "胡", "郭", "何", "林", "罗", "高", "郑"]
+    given_names = ["伟", "芳", "娜", "敏", "静", "丽", "强", "磊", "军", "洋", "勇", "艳", "杰", "涛", "明", "超", "秀英", "华", "慧", "建华"]
+    levels = ["普通", "银卡", "金卡", "钻石"]
+    level_weights = [0.5, 0.25, 0.15, 0.1]
+    tag_options = ["新客户", "活跃", "沉睡", "流失", "VIP", "高价值"]
+    cities = ["北京市朝阳区", "上海市浦东新区", "广州市天河区", "深圳市南山区", "杭州市西湖区", "成都市锦江区", "南京市鼓楼区", "武汉市洪山区", "重庆市渝中区", "苏州市工业园区"]
+
+    for i in range(1, 51):
+        surname = rnd.choice(surnames)
+        given = rnd.choice(given_names)
+        name = surname + given
+        gender = rnd.choice(["男", "女"])
+        level = rnd.choices(levels, weights=level_weights, k=1)[0]
+        phone = f"1{rnd.choice('3456789')}{rnd.randint(10000000, 99999999)}"
+        email = f"customer{i}@example.com"
+        total_spent = round(rnd.uniform(500, 50000), 2)
+        order_count = rnd.randint(1, 60)
+        points = rnd.randint(0, 10000)
+        balance = round(rnd.uniform(0, 5000), 2)
+        city = rnd.choice(cities)
+        address = f"{city}某某街道{i}号"
+
+        tags = []
+        if rnd.random() > 0.5:
+            tags.append(rnd.choice(["新客户", "活跃", "沉睡", "流失"]))
+        if rnd.random() > 0.7:
+            tags.append(rnd.choice(tag_options))
+        if level in ("金卡", "钻石"):
+            tags.append("VIP")
+        if total_spent > 30000:
+            tags.append("高价值")
+        tags = list(set(tags))
+
+        days_ago = rnd.randint(1, 365)
+        from datetime import timedelta
+        created = datetime.now() - timedelta(days=days_ago)
+        last_order_days = rnd.randint(0, 30)
+        last_order_time = (datetime.now() - timedelta(days=last_order_days)).strftime("%Y-%m-%d %H:%M")
+
+        db.add(Customer(
+            name=name,
+            phone=phone,
+            email=email,
+            gender=gender,
+            level=level,
+            tags=json.dumps(tags, ensure_ascii=False),
+            avatar=f"https://api.dicebear.com/7.x/avataaars/svg?seed={i}",
+            address=address,
+            total_spent=total_spent,
+            order_count=order_count,
+            last_order_time=last_order_time,
+            points=points,
+            balance=balance,
+            created_at=created,
+        ))
+    db.commit()
+
+
 # ============================================================
 # FastAPI 应用
 # ============================================================
@@ -168,6 +266,7 @@ async def lifespan(app: FastAPI):
     try:
         seed_default_categories(db)
         seed_sample_products(db)
+        seed_sample_customers(db)
     finally:
         db.close()
     print("✅ 商品服务启动完成，数据库已初始化")
@@ -441,6 +540,161 @@ async def delete_category(
     cat.is_active = False
     db.commit()
     return {"success": True, "message": f"分类 '{cat.name}' 已禁用"}
+
+
+# ============================================================
+# 客户 CRUD 路由
+# ============================================================
+
+@app.get("/api/customers/stats")
+async def get_customer_stats(db: Session = Depends(get_db)):
+    """获取客户统计数据"""
+    import json
+    total = db.query(Customer).count()
+    # 新增：30天内注册
+    from datetime import timedelta
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    new_customers = db.query(Customer).filter(Customer.created_at >= thirty_days_ago).count()
+    # 活跃：30天内有订单
+    active_customers = db.query(Customer).filter(
+        Customer.last_order_time != "",
+        Customer.last_order_time != "-",
+    ).count()
+    # VIP: 金卡/钻石
+    vip_customers = db.query(Customer).filter(
+        Customer.level.in_(["金卡", "钻石"])
+    ).count()
+
+    return {
+        "success": True,
+        "data": {
+            "total": total,
+            "newCustomers": new_customers,
+            "activeCustomers": active_customers,
+            "vipCustomers": vip_customers,
+        },
+    }
+
+
+@app.get("/api/customers")
+async def list_customers(
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+    level: Optional[str] = Query(None, description="客户等级筛选"),
+    tag: Optional[str] = Query(None, description="标签筛选"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    db: Session = Depends(get_db),
+):
+    """获取客户列表（支持搜索、筛选、分页）"""
+    query = db.query(Customer)
+
+    if keyword:
+        kw = f"%{keyword}%"
+        query = query.filter(
+            or_(
+                Customer.name.ilike(kw),
+                Customer.phone.ilike(kw),
+                Customer.email.ilike(kw),
+            )
+        )
+    if level and level != "all":
+        query = query.filter(Customer.level == level)
+    if tag and tag != "all":
+        query = query.filter(Customer.tags.ilike(f"%{tag}%"))
+
+    total = query.count()
+    items = query.order_by(Customer.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return {
+        "success": True,
+        "data": [c.to_dict() for c in items],
+        "meta": {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        },
+    }
+
+
+@app.get("/api/customers/{customer_id}")
+async def get_customer(
+    customer_id: int = Path(..., description="客户ID"),
+    db: Session = Depends(get_db),
+):
+    """获取客户详情"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"客户 {customer_id} 不存在")
+    return {"success": True, "data": customer.to_dict()}
+
+
+@app.post("/api/customers")
+async def create_customer(
+    body: CustomerCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """创建客户"""
+    import json
+    customer = Customer(
+        name=body.name,
+        phone=body.phone,
+        email=body.email,
+        gender=body.gender,
+        level=body.level or "普通",
+        tags=json.dumps(body.tags or [], ensure_ascii=False),
+        avatar=body.avatar or "",
+        address=body.address or "",
+        total_spent=body.total_spent or 0,
+        order_count=body.order_count or 0,
+        last_order_time=body.last_order_time or "-",
+        points=body.points or 0,
+        balance=body.balance or 0,
+    )
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return {"success": True, "data": customer.to_dict(), "message": "客户创建成功"}
+
+
+@app.patch("/api/customers/{customer_id}")
+async def update_customer(
+    customer_id: int = Path(..., description="客户ID"),
+    body: CustomerUpdateRequest = ...,
+    db: Session = Depends(get_db),
+):
+    """更新客户"""
+    import json
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"客户 {customer_id} 不存在")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if key == "tags" and isinstance(value, list):
+            setattr(customer, key, json.dumps(value, ensure_ascii=False))
+        else:
+            setattr(customer, key, value)
+
+    customer.updated_at = datetime.now()
+    db.commit()
+    db.refresh(customer)
+    return {"success": True, "data": customer.to_dict(), "message": "客户信息更新成功"}
+
+
+@app.delete("/api/customers/{customer_id}")
+async def delete_customer(
+    customer_id: int = Path(..., description="客户ID"),
+    db: Session = Depends(get_db),
+):
+    """删除客户"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail=f"客户 {customer_id} 不存在")
+
+    db.delete(customer)
+    db.commit()
+    return {"success": True, "message": f"客户 {customer_id} 已删除"}
 
 
 # ============================================================

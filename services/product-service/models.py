@@ -119,6 +119,72 @@ class Product(Base):
         }
 
 
+class Customer(Base):
+    """客户模型"""
+    __tablename__ = "customers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, comment="客户姓名")
+    phone = Column(String(20), nullable=True, comment="手机号")
+    email = Column(String(200), nullable=True, comment="邮箱")
+    gender = Column(String(10), nullable=True, comment="性别: 男/女")
+    level = Column(String(20), default="普通", comment="客户等级: 普通/银卡/金卡/钻石")
+    tags = Column(Text, default="[]", comment="标签JSON数组")
+    avatar = Column(String(500), default="", comment="头像URL")
+    address = Column(String(500), default="", comment="地址")
+    total_spent = Column(Float, default=0, comment="累计消费")
+    order_count = Column(Integer, default=0, comment="订单数")
+    last_order_time = Column(String(30), default="", comment="最近下单时间")
+    points = Column(Integer, default=0, comment="积分")
+    balance = Column(Float, default=0, comment="账户余额")
+    created_at = Column(DateTime, default=datetime.now, comment="注册时间")
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        Index("idx_customers_phone", "phone"),
+        Index("idx_customers_level", "level"),
+        Index("idx_customers_name", "name"),
+    )
+
+    def to_dict(self):
+        import json
+        level_map = {
+            "普通": {"color": "#8c8c8c"},
+            "银卡": {"color": "#bfbfbf"},
+            "金卡": {"color": "#faad14"},
+            "钻石": {"color": "#722ed1"},
+        }
+        lv = level_map.get(self.level, level_map["普通"])
+
+        tags_list = []
+        try:
+            tags_list = json.loads(self.tags) if self.tags else []
+        except Exception:
+            tags_list = []
+
+        return {
+            "id": f"C{str(self.id).zfill(6)}",
+            "db_id": self.id,
+            "name": self.name,
+            "phone": self.phone or "",
+            "email": self.email or "",
+            "gender": self.gender or "",
+            "level": self.level,
+            "levelColor": lv["color"],
+            "tags": tags_list,
+            "avatar": self.avatar or f"https://api.dicebear.com/7.x/avataaars/svg?seed={self.id}",
+            "address": self.address or "",
+            "totalSpent": self.total_spent or 0,
+            "orderCount": self.order_count or 0,
+            "lastOrderTime": self.last_order_time or "-",
+            "points": self.points or 0,
+            "balance": self.balance or 0,
+            "registerTime": self.created_at.strftime("%Y-%m-%d") if self.created_at else "",
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 # 数据库初始化
 DATABASE_URL = "sqlite:///./data/product_service.db"
 
