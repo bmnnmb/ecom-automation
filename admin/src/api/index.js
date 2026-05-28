@@ -243,16 +243,30 @@ export async function fetchCompetitors() {
 }
 
 // ==================== 系统设置 ====================
+// 注意: 使用相对路径 /api/settings，通过 Vite 代理转发到 API 网关 (port 8000)
+// 不走 apiRequest() 因为 API_BASE 指向 douyin-adapter (port 8001)
 
 export async function fetchSettings() {
   try {
-    const data = await apiRequest('/api/settings');
-    return { ...data, source: 'api' };
+    const res = await fetch('/api/settings', {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`Settings API error: ${res.status}`);
+    const json = await res.json();
+    if (json.success && json.data) {
+      // 同步备份到 localStorage
+      localStorage.setItem('ecom_settings', JSON.stringify(json.data));
+      return { data: json.data, source: 'api' };
+    }
+    throw new Error('Invalid settings response');
   } catch {
     // 后端不可用时从 localStorage 读取
     const saved = localStorage.getItem('ecom_settings');
     if (saved) {
-      try { return { ...JSON.parse(saved), source: 'local' }; } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        return { data: parsed, source: 'local' };
+      } catch {}
     }
     return null; // 返回 null 表示使用默认值
   }
@@ -260,17 +274,24 @@ export async function fetchSettings() {
 
 export async function saveSettings(settings) {
   try {
-    const data = await apiRequest('/api/settings', {
+    const res = await fetch('/api/settings', {
       method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),
+      signal: AbortSignal.timeout(5000),
     });
-    // 同步保存到 localStorage 作为备份
-    localStorage.setItem('ecom_settings', JSON.stringify(data));
-    return { ...data, source: 'api' };
+    if (!res.ok) throw new Error(`Settings API error: ${res.status}`);
+    const json = await res.json();
+    if (json.success && json.data) {
+      // 同步保存到 localStorage 作为备份
+      localStorage.setItem('ecom_settings', JSON.stringify(json.data));
+      return { data: json.data, source: 'api' };
+    }
+    throw new Error('Invalid settings response');
   } catch {
     // 后端不可用时保存到 localStorage
     localStorage.setItem('ecom_settings', JSON.stringify(settings));
-    return { ...settings, source: 'local' };
+    return { data: settings, source: 'local' };
   }
 }
 
