@@ -1,8 +1,8 @@
 # ecom-automation API Documentation
 
-> 自动生成于 2026-05-27 | 源码扫描自 4 个 FastAPI 服务
+> 自动生成于 2026-05-29 | 源码扫描自 10 个微服务
 
-本文档覆盖 ecom-automation 项目的全部 REST API 端点，共 **4 个服务、50+ 个接口**。
+本文档覆盖 ecom-automation 项目的全部 REST API 端点，共 **10 个服务、50+ 个接口**。
 
 ## 目录
 

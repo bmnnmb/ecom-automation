@@ -5,7 +5,7 @@
 ## 系统架构
 
 ```
-[ Hermes 总控 ]
+[ Hermes 总控 ]  :8007
     ├─ ecom-competitor-analyst skill
     ├─ ecom-selection-scorer skill
     ├─ ecom-product-copywriter skill
@@ -15,29 +15,31 @@
     └─ ecom-daily-report skill
             │
             ▼
-[ Orchestrator ]  n8n + internal API + Redis Queue
+[ Orchestrator ]  n8n :5678 + internal API + Redis Queue
             │
             ├───────────────┬───────────────┬───────────────┐
             ▼               ▼               ▼               ▼
   [平台适配器服务]   [抓取/RPA服务]    [知识库服务]      [OMS服务]
-  Douyin Adapter    Xianyu Bot Worker   FAQ RAG API       Orders/Refunds
-  Kuaishou Adapter  PDD CS Worker       Policy RAG API    Inventory
-  PDD Adapter       Competitor Crawler  Product RAG API   Tickets
+  Douyin :8001      Xianyu :8004      RAG :8006         OMS :8005
+  Kuaishou :8002    PDD CS :8003
+                    Crawler :8008
+  [ API Gateway :8000 ]  [ Product Service :8009 ]
 ```
 
 ## 服务列表
 
-| 服务 | 技术栈 | 说明 |
-|------|--------|------|
-| hermes-control | Python + Hermes | 总控、策略、调度、报表 |
-| api-gateway | FastAPI | 统一REST API网关 |
-| douyin-adapter | FastAPI + 官方SDK | 抖店平台适配器 |
-| kuaishou-adapter | FastAPI + SDK | 快手平台适配器 |
-| pdd-cs-adapter | Python + Playwright | 拼多多客服自动化 |
-| xianyu-adapter | FastAPI + Playwright | 闲鱼自动化 |
-| competitor-crawler | Python asyncio | 竞品数据采集 |
-| rag-service | FastGPT/Dify | 知识库服务 |
-| oms-service | FastAPI | 订单中台 |
+| 服务 | 端口 | 技术栈 | 说明 |
+|------|------|--------|------|
+| api-gateway | 8000 | FastAPI | 统一REST API网关 |
+| douyin-adapter | 8001 | FastAPI + 官方SDK | 抖店平台适配器 |
+| kuaishou-adapter | 8002 | FastAPI + SDK | 快手平台适配器 |
+| pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化 |
+| xianyu-adapter | 8004 | FastAPI + Playwright | 闲鱼自动化 |
+| oms-service | 8005 | FastAPI | 订单中台 |
+| rag-service | 8006 | FastAPI + pgvector | RAG 知识库检索 |
+| hermes-control | 8007 | Python + Hermes | 总控、策略、调度、报表 |
+| competitor-crawler | 8008 | Python asyncio | 竞品数据采集与分析 |
+| product-service | 8009 | FastAPI + SQLAlchemy | 商品与分类管理 |
 
 ## 快速开始
 
@@ -77,14 +79,20 @@ docker-compose up -d
 
 ## API 文档
 
-系统包含 4 个 FastAPI 微服务，共计 50+ 个 REST API 端点。
+系统包含 10 个微服务，共计 50+ 个 REST API 端点。
 
 | 服务 | 端口 | 说明 | 交互式文档 |
 |------|------|------|-----------|
-| API Gateway | 8001 | 统一 API 网关 | `http://localhost:8001/docs` |
-| Hermes 总控 | 8080 | 任务调度/技能执行/报表 | `http://localhost:8080/docs` |
-| 竞品爬虫 | 8000 | 竞品数据采集与分析 | `http://localhost:8000/docs` |
-| RAG 知识库 | — | 知识检索 | Swagger UI |
+| API Gateway | 8000 | 统一 API 网关 | `http://localhost:8000/docs` |
+| 抖店适配器 | 8001 | 抖店 OAuth + API | `http://localhost:8001/docs` |
+| 快手适配器 | 8002 | 快手 OAuth + API | `http://localhost:8002/docs` |
+| 拼多多客服 | 8003 | 客服自动化 | `http://localhost:8003/docs` |
+| 闲鱼适配器 | 8004 | 闲鱼自动化 | `http://localhost:8004/docs` |
+| OMS 服务 | 8005 | 订单中台 | `http://localhost:8005/docs` |
+| RAG 知识库 | 8006 | 知识检索 | `http://localhost:8006/docs` |
+| Hermes 总控 | 8007 | 任务调度/技能执行/报表 | `http://localhost:8007/docs` |
+| 竞品爬虫 | 8008 | 竞品数据采集与分析 | `http://localhost:8008/docs` |
+| 商品服务 | 8009 | 商品与分类管理 | `http://localhost:8009/docs` |
 
 **主要 API 模块：**
 
