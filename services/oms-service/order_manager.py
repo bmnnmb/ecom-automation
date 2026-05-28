@@ -315,3 +315,10 @@ class OrderManager:
     def get_refunding_orders(self) -> List[Order]:
         """获取退款中的订单"""
         return [o for o in self.orders.values() if o.status == OrderStatus.REFUNDING]
+
+    def delete_order(self, order_id: str) -> bool:
+        """删除订单"""
+        if order_id in self.orders:
+            del self.orders[order_id]
+            return True
+        return False

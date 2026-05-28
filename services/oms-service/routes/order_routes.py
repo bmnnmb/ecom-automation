@@ -163,3 +163,15 @@ async def get_orders_by_platform(platform: Platform):
 async def get_orders_by_status(status: OrderStatus):
     """获取指定状态的订单"""
     return order_manager.get_orders_by_status(status)
+
+
+@router.delete("/{order_id}", summary="删除订单")
+async def delete_order(order_id: str):
+    """删除订单（仅 pending 状态可删除）"""
+    order = order_manager.get_order_by_id(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    if order.status != OrderStatus.PENDING:
+        raise HTTPException(status_code=400, detail=f"只有 pending 状态的订单可以删除，当前状态: {order.status.value}")
+    order_manager.delete_order(order_id)
+    return {"success": True, "message": f"订单 {order_id} 已删除"}
