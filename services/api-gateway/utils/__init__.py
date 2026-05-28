@@ -11,6 +11,7 @@ from .errors import (
     ServiceError,
     setup_error_handlers,
 )
+from .proxy import create_proxy_router, resolve_service_url
 
 __all__ = [
     "ErrorCode",
@@ -21,4 +22,6 @@ __all__ = [
     "AuthError",
     "ServiceError",
     "setup_error_handlers",
+    "create_proxy_router",
+    "resolve_service_url",
 ]
