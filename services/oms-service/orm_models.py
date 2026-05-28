@@ -10,7 +10,7 @@ from sqlalchemy import (
     Enum, JSON, event
 )
 from sqlalchemy.orm import relationship, validates
-from .database import Base
+from database import Base
 
 
 class PlatformEnum(str, PyEnum):

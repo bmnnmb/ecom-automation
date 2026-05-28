@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, timedelta
-from models import Order, OrderStatus, Platform, PaymentStatus, RiskLevel
+from pydantic_models import Order, OrderStatus, Platform, PaymentStatus, RiskLevel
 from order_manager import OrderManager
 
 router = APIRouter()

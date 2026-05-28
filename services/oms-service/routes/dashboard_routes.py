@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, timedelta
-from models import DashboardStats, Order, Ticket, Platform
+from pydantic_models import DashboardStats, Order, Ticket, Platform
 from order_manager import OrderManager
 from inventory_manager import InventoryManager
 from ticket_manager import TicketManager

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from models import InventoryItem, Platform, RiskLevel
+from pydantic_models import InventoryItem, Platform, RiskLevel
 
 
 class InventoryManager:

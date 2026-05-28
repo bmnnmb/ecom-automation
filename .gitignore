@@ -61,3 +61,5 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+services/oms-service/data/
+*.db

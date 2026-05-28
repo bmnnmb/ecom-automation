@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import uuid
-from models import Ticket, TicketStatus, TicketType, Platform
+from pydantic_models import Ticket, TicketStatus, TicketType, Platform
 
 
 class TicketManager:

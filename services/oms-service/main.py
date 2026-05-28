@@ -11,13 +11,21 @@ from fastapi.exceptions import RequestValidationError
 import uvicorn
 from datetime import datetime
 from typing import Optional
-from loguru import logger
+import logging
 
-from models import Order, OrderStatus, Platform, InventoryItem, Ticket, TicketStatus
+logger = logging.getLogger("oms-service")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+    logger.addHandler(_handler)
+
+from pydantic_models import Order, OrderStatus, Platform, InventoryItem, Ticket, TicketStatus
 from order_manager import OrderManager
 from inventory_manager import InventoryManager
 from ticket_manager import TicketManager
 from routes import order_router, inventory_router, ticket_router, dashboard_router
+from database import DATABASE_URL, init_db
 
 
 # ============================================================
@@ -64,11 +72,12 @@ class ValidationError(OmsError):
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("🚀 OMS订单中台服务启动中...")
-    # 这里可以添加数据库连接、缓存初始化等
-    logger.info("✅ OMS订单中台服务启动完成")
+    logger.info(f"📦 数据库: {DATABASE_URL}")
+    init_db()
+    logger.info("✅ 数据库表已初始化")
+    logger.info("✅ OMS订单中台服务启动完成 — http://0.0.0.0:8005")
     yield
     logger.info("🛑 OMS订单中台服务关闭中...")
-    # 这里可以添加资源清理逻辑
     logger.info("✅ OMS订单中台服务已关闭")
 
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from models import Ticket, TicketStatus, TicketType, Platform
+from pydantic_models import Ticket, TicketStatus, TicketType, Platform
 from ticket_manager import TicketManager
 
 router = APIRouter()

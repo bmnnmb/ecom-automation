@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import InventoryItem, Platform, RiskLevel
+from pydantic_models import InventoryItem, Platform, RiskLevel
 from inventory_manager import InventoryManager
 from database import get_db
 from repositories.sku_repository import SKURepository
