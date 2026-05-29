@@ -1,14 +1,13 @@
 # ecom-automation API Documentation
 
-> 自动生成于 2026-05-29 | 源码扫描自 10 个微服务
+> 最后更新: 2026-05-29 | 源码扫描自 10 个微服务
 
-本文档覆盖 ecom-automation 项目的全部 REST API 端点，共 **10 个服务、50+ 个接口**。
+本文档覆盖 ecom-automation 项目的全部 REST API 端点，共 **10 个服务、80+ 个接口**。
 
 ## 目录
 
 - [服务概览](#服务概览)
-- [1. API Gateway (端口 8001)](#1-api-gateway-端口-8001)
-  - [健康检查](#健康检查)
+- [1. API Gateway (端口 8000)](#1-api-gateway-端口-8000)
   - [统一鉴权 /api/auth](#统一鉴权-apiauth)
   - [店铺管理 /api/shops](#店铺管理-apishops)
   - [商品管理 /api/products](#商品管理-apiproducts)
@@ -22,8 +21,19 @@
   - [技能执行](#技能执行)
   - [报表生成](#报表生成)
   - [业务目标处理](#业务目标处理)
-- [3. RAG 知识库服务](#3-rag-知识库服务)
-- [4. 竞品爬虫服务 (端口 8000)](#4-竞品爬虫服务-端口-8000)
+- [3. RAG 知识库服务 (端口 8006)](#3-rag-知识库服务-端口-8006)
+- [4. 竞品爬虫服务 (端口 8008)](#4-竞品爬虫服务-端口-8008)
+- [5. 商品管理服务 (端口 8006)](#5-商品管理服务-端口-8006)
+  - [商品 CRUD](#商品-crud)
+  - [商品批量操作](#商品批量操作)
+  - [分类管理](#分类管理)
+  - [客户管理](#客户管理)
+- [6. 抖店适配器 (端口 8001)](#6-抖店适配器-端口-8001)
+- [7. 快手适配器 (端口 8002)](#7-快手适配器-端口-8002)
+- [8. OMS 订单中台 (端口 8005)](#8-oms-订单中台-端口-8005)
+- [9. 拼多多客服适配器 (端口 8003)](#9-拼多多客服适配器-端口-8003)
+- [10. 闲鱼适配器 (端口 8004)](#10-闲鱼适配器-端口-8004)
+- [数据模型](#数据模型)
 
 ---
 
@@ -31,33 +41,22 @@
 
 | 服务 | 端口 | 技术栈 | 说明 |
 |------|------|--------|------|
-| api-gateway | 8001 | FastAPI | 统一 REST API 网关 |
-| hermes-control | 8080 | FastAPI | 任务调度、技能执行、报表 |
-| rag-service | — | FastAPI | RAG 知识库检索 |
-| competitor-crawler | 8000 | FastAPI | 竞品数据采集与分析 |
+| api-gateway | 8000 | FastAPI | 统一 REST API 网关 |
+| douyin-adapter | 8001 | FastAPI + 官方SDK | 抖店平台适配器 |
+| kuaishou-adapter | 8002 | FastAPI + SDK | 快手平台适配器 |
+| pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化 |
+| xianyu-adapter | 8004 | FastAPI + Playwright | 闲鱼自动化 |
+| oms-service | 8005 | FastAPI | 订单中台 |
+| product-service | 8006 | FastAPI + SQLAlchemy | 商品与分类管理 |
+| rag-service | 8006 | FastAPI + pgvector | RAG 知识库检索 |
+| hermes-control | 8080 | Python + Hermes | 总控、策略、调度、报表 |
+| competitor-crawler | 8008 | Python asyncio | 竞品数据采集与分析 |
 
 ---
 
-## 1. API Gateway (端口 8001)
+## 1. API Gateway (端口 8000)
 
-基础路径: `http://localhost:8001`
-
-### 健康检查
-
-```
-GET /health
-```
-
-**响应**
-```json
-{
-  "status": "healthy",
-  "service": "ecom-api-gateway",
-  "version": "1.0.0"
-}
-```
-
----
+基础路径: `http://localhost:8000`
 
 ### 统一鉴权 `/api/auth`
 
@@ -543,7 +542,16 @@ POST /goals/process
 
 ---
 
-## 3. RAG 知识库服务
+## 3. RAG 知识库服务 (端口 8006)
+
+基础路径: `http://localhost:8006`
+
+### 健康检查
+
+```
+GET /health
+GET /
+```
 
 ### RAG 查询
 
@@ -616,11 +624,18 @@ POST /rag/rebuild-index/{domain}     # 重建指定领域索引
 POST /rag/rebuild-index-all          # 重建所有索引
 ```
 
+### 缓存管理
+
+```
+GET  /cache/stats          # 获取缓存统计信息
+POST /cache/invalidate     # 清除缓存
+```
+
 ---
 
-## 4. 竞品爬虫服务 (端口 8000)
+## 4. 竞品爬虫服务 (端口 8008)
 
-基础路径: `http://localhost:8000`
+基础路径: `http://localhost:8008`
 
 ### 健康检查
 
@@ -712,7 +727,7 @@ POST   /tasks/{task_id}/resume      # 恢复任务
 
 ```
 GET /analysis/price/{platform}/{product_id}?days={days}       # 价格趋势
-GET /analysis/title/{platform}/{platform}?days={days}         # 标题变化
+GET /analysis/title/{platform}/{product_id}?days={days}       # 标题变化
 GET /analysis/promotions/{platform}/{product_id}              # 促销监控
 GET /analysis/report/{product_id}?platforms={platforms}       # 竞品分析报告
 ```
@@ -744,7 +759,583 @@ GET /products?platform={platform}                                    # 监控商
 GET /products/search?keyword={keyword}&platform={platform}           # 搜索商品
 GET /products/{platform}/{product_id}/history?days={days}            # 价格历史
 GET /stats                                                           # 服务统计
+GET /anti-crawler/stats                                              # 反爬统计
 ```
+
+---
+
+## 5. 商品管理服务 (端口 8006)
+
+基础路径: `http://localhost:8006`
+
+独立的商品与客户管理微服务，使用 SQLAlchemy + SQLite，支持商品、分类、客户的完整 CRUD 及批量操作。
+
+### 健康检查
+
+```
+GET /         # 服务状态
+GET /health   # 健康检查
+```
+
+---
+
+### 商品 CRUD
+
+#### 获取商品列表
+
+```
+GET /api/products?keyword={keyword}&platform={platform}&category={category}&status={status}&page={page}&page_size={page_size}
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| keyword | string | ❌ | — | 关键词搜索（匹配商品名称和SKU） |
+| platform | string | ❌ | — | 平台筛选: `douyin` / `pdd` / `xianyu` / `kuaishou` |
+| category | string | ❌ | — | 分类筛选 |
+| status | string | ❌ | — | 状态筛选: `active` / `draft` / `out_of_stock` / `disabled` |
+| page | int | ❌ | 1 | 页码 |
+| page_size | int | ❌ | 20 | 每页数量 (1-100) |
+
+**响应**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Type-C数据线",
+      "sku": "SKU0001",
+      "platform": "douyin",
+      "platform_name": "抖音",
+      "category": "数码配件",
+      "price": 99.99,
+      "cost": 45.00,
+      "stock": 100,
+      "sales": 256,
+      "status": "active",
+      "status_label": "在售",
+      "image": "https://picsum.photos/seed/1/80/80",
+      "description": "Type-C数据线的详细描述",
+      "created_at": "2026-05-29T10:00:00",
+      "updated_at": "2026-05-29T10:00:00"
+    }
+  ],
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 3
+  }
+}
+```
+
+#### 获取商品统计
+
+```
+GET /api/products/stats
+```
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "total": 50,
+    "active": 35,
+    "lowStock": 8,
+    "outOfStock": 5,
+    "totalValue": 125000.00
+  }
+}
+```
+
+#### 获取商品详情
+
+```
+GET /api/products/{product_id}
+```
+
+**响应 200** — 商品详情
+**响应 404** — `{"detail": "商品 {product_id} 不存在"}`
+
+#### 创建商品
+
+```
+POST /api/products
+```
+
+**请求体** — `ProductCreateRequest`
+```json
+{
+  "name": "新品数据线",
+  "sku": "SKU0051",
+  "platform": "douyin",
+  "category": "数码配件",
+  "price": 29.99,
+  "cost": 12.00,
+  "stock": 200,
+  "image": "https://example.com/image.jpg",
+  "description": "高品质Type-C数据线"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| name | string | ✅ | 商品名称 (1-200字符) |
+| sku | string | ✅ | SKU编码 (1-50字符，唯一) |
+| platform | string | ✅ | 所属平台: `douyin` / `pdd` / `xianyu` / `kuaishou` |
+| category | string | ✅ | 商品分类 |
+| price | float | ✅ | 售价 (>0) |
+| cost | float | ❌ | 成本价 (≥0，默认0) |
+| stock | int | ❌ | 库存数量 (≥0，默认0) |
+| image | string | ❌ | 商品图片URL |
+| description | string | ❌ | 商品描述 |
+| status | string | ❌ | 商品状态 (默认 `active`) |
+
+**响应 200** — 创建成功
+**响应 409** — `{"detail": "SKU 'xxx' 已存在"}`
+
+#### 更新商品
+
+```
+PATCH /api/products/{product_id}
+```
+
+**请求体** — `ProductUpdateRequest`（所有字段可选）
+```json
+{
+  "price": 39.99,
+  "stock": 150,
+  "status": "active"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| name | string | 商品名称 |
+| sku | string | SKU编码 |
+| platform | string | 所属平台 |
+| category | string | 商品分类 |
+| price | float | 售价 |
+| cost | float | 成本价 |
+| stock | int | 库存数量 |
+| image | string | 商品图片URL |
+| description | string | 商品描述 |
+| status | string | 商品状态 |
+| sales | int | 销量 |
+
+**响应 200** — 更新成功
+**响应 404** — `{"detail": "商品 {product_id} 不存在"}`
+
+#### 删除商品
+
+```
+DELETE /api/products/{product_id}
+```
+
+**响应 200** — `{"success": true, "message": "商品 {product_id} 已删除"}`
+
+---
+
+### 商品批量操作
+
+#### 批量删除
+
+```
+POST /api/products/batch/delete
+```
+
+**请求体** — `BatchActionRequest`
+```json
+{
+  "product_ids": [1, 2, 3]
+}
+```
+
+**响应** — `{"success": true, "message": "已删除 3 个商品"}`
+
+#### 批量下架
+
+```
+POST /api/products/batch/disable
+```
+
+**请求体** — `BatchActionRequest`
+```json
+{
+  "product_ids": [1, 2, 3]
+}
+```
+
+**响应** — `{"success": true, "message": "已下架 3 个商品"}`
+
+#### 批量调价
+
+```
+POST /api/products/batch/price
+```
+
+**请求体** — `BatchPriceAdjustRequest`
+```json
+{
+  "product_ids": [1, 2, 3],
+  "adjust_type": "increase_pct",
+  "adjust_value": 10
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| product_ids | int[] | ✅ | 商品ID列表 (至少1个) |
+| adjust_type | string | ✅ | 调整方式: `increase_pct` / `decrease_pct` / `increase_amt` / `decrease_amt` |
+| adjust_value | float | ✅ | 调整数值 (>0) |
+
+**响应** — `{"success": true, "message": "已调整 3 个商品的价格"}`
+
+---
+
+### 分类管理
+
+#### 获取所有分类
+
+```
+GET /api/categories
+```
+
+**响应**
+```json
+{
+  "success": true,
+  "data": [
+    {"id": 1, "name": "数码配件", "parent_id": null, "sort_order": 0},
+    {"id": 2, "name": "家居日用", "parent_id": null, "sort_order": 1}
+  ]
+}
+```
+
+#### 创建分类
+
+```
+POST /api/categories
+```
+
+**请求体** — `CategoryCreateRequest`
+```json
+{
+  "name": "新品专区",
+  "parent_id": null,
+  "sort_order": 10
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| name | string | ✅ | 分类名称 (1-100字符) |
+| parent_id | int | ❌ | 父分类ID |
+| sort_order | int | ❌ | 排序序号 (默认0) |
+
+**响应 200** — 创建成功
+**响应 409** — `{"detail": "分类 'xxx' 已存在"}`
+
+#### 删除分类
+
+```
+DELETE /api/categories/{category_id}
+```
+
+> 注意：删除操作为软删除（设置 `is_active=False`）
+
+**响应 200** — `{"success": true, "message": "分类 'xxx' 已禁用"}`
+
+---
+
+### 客户管理
+
+#### 获取客户统计
+
+```
+GET /api/customers/stats
+```
+
+**响应**
+```json
+{
+  "success": true,
+  "data": {
+    "total": 50,
+    "newCustomers": 8,
+    "activeCustomers": 35,
+    "vipCustomers": 12
+  }
+}
+```
+
+#### 获取客户列表
+
+```
+GET /api/customers?keyword={keyword}&level={level}&tag={tag}&page={page}&page_size={page_size}
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| keyword | string | ❌ | — | 搜索（匹配姓名、手机、邮箱） |
+| level | string | ❌ | — | 等级筛选: `普通` / `银卡` / `金卡` / `钻石` |
+| tag | string | ❌ | — | 标签筛选 |
+| page | int | ❌ | 1 | 页码 |
+| page_size | int | ❌ | 20 | 每页数量 (1-100) |
+
+**响应**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "张伟",
+      "phone": "13812345678",
+      "email": "customer1@example.com",
+      "gender": "男",
+      "level": "金卡",
+      "tags": "[\"VIP\", \"高价值\"]",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=1",
+      "address": "北京市朝阳区某某街道1号",
+      "total_spent": 35000.00,
+      "order_count": 25,
+      "last_order_time": "2026-05-25 14:30",
+      "points": 5000,
+      "balance": 1500.00,
+      "created_at": "2026-01-15T10:00:00",
+      "updated_at": "2026-05-25T14:30:00"
+    }
+  ],
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 3
+  }
+}
+```
+
+#### 获取客户详情
+
+```
+GET /api/customers/{customer_id}
+```
+
+**响应 200** — 客户详情
+**响应 404** — `{"detail": "客户 {customer_id} 不存在"}`
+
+#### 创建客户
+
+```
+POST /api/customers
+```
+
+**请求体** — `CustomerCreateRequest`
+```json
+{
+  "name": "李芳",
+  "phone": "13987654321",
+  "email": "lifang@example.com",
+  "gender": "女",
+  "level": "普通",
+  "tags": ["新客户"],
+  "address": "上海市浦东新区某某路100号"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| name | string | ✅ | 客户姓名 (1-100字符) |
+| phone | string | ❌ | 手机号 |
+| email | string | ❌ | 邮箱 |
+| gender | string | ❌ | 性别: `男` / `女` |
+| level | string | ❌ | 等级 (默认 `普通`) |
+| tags | string[] | ❌ | 标签列表 |
+| avatar | string | ❌ | 头像URL |
+| address | string | ❌ | 地址 |
+| total_spent | float | ❌ | 累计消费 |
+| order_count | int | ❌ | 订单数 |
+| last_order_time | string | ❌ | 最近下单时间 |
+| points | int | ❌ | 积分 |
+| balance | float | ❌ | 账户余额 |
+
+#### 更新客户
+
+```
+PATCH /api/customers/{customer_id}
+```
+
+**请求体** — `CustomerUpdateRequest`（所有字段可选，同创建接口）
+
+**响应 200** — 更新成功
+**响应 404** — `{"detail": "客户 {customer_id} 不存在"}`
+
+#### 删除客户
+
+```
+DELETE /api/customers/{customer_id}
+```
+
+**响应 200** — `{"success": true, "message": "客户 {customer_id} 已删除"}`
+
+---
+
+## 6. 抖店适配器 (端口 8001)
+
+基础路径: `http://localhost:8001`
+
+抖店开放平台 API 适配器，提供商品、订单、库存、售后、物流等管理功能。
+
+### 健康检查
+
+```
+GET /         # 服务状态
+GET /health   # 健康检查
+```
+
+### OAuth 授权
+
+```
+GET  /auth/url                    # 获取授权链接
+POST /auth/callback               # OAuth 回调
+POST /auth/refresh                # 刷新令牌
+```
+
+### 商品管理 `/api/shop/douyin`
+
+```
+GET /api/shop/douyin/products/list                    # 商品列表
+GET /api/shop/douyin/products/detail/{product_id}     # 商品详情
+```
+
+### 订单管理
+
+```
+GET /api/shop/douyin/orders/list                      # 订单列表
+GET /api/shop/douyin/orders/detail/{order_id}         # 订单详情
+```
+
+### 库存管理
+
+```
+POST /api/shop/douyin/inventory/update                # 更新库存
+```
+
+### 售后管理
+
+```
+GET /api/shop/douyin/aftersales/list                  # 售后列表
+```
+
+### 物流管理
+
+```
+POST /api/shop/douyin/logistics/send                  # 发货
+```
+
+---
+
+## 7. 快手适配器 (端口 8002)
+
+基础路径: `http://localhost:8002`
+
+快手开放平台 API 适配器，提供商品、订单、库存、物流等管理功能。内置 Token 自动刷新调度器。
+
+### 健康检查
+
+```
+GET /         # 服务状态
+GET /health   # 健康检查
+```
+
+### OAuth 授权
+
+```
+GET  /auth/url                    # 获取授权链接
+POST /auth/callback               # OAuth 回调
+POST /auth/refresh                # 刷新令牌
+GET  /auth/token-status           # Token 状态检查
+POST /auth/force-refresh          # 强制刷新 Token
+```
+
+### 商品管理 `/api/shop/kuaishou`
+
+```
+GET /api/shop/kuaishou/products/list                    # 商品列表
+GET /api/shop/kuaishou/products/detail/{product_id}     # 商品详情
+```
+
+### 订单管理
+
+```
+GET /api/shop/kuaishou/orders/list                      # 订单列表
+GET /api/shop/kuaishou/orders/detail/{order_id}         # 订单详情
+```
+
+### 库存管理
+
+```
+POST /api/shop/kuaishou/inventory/update                # 更新库存
+```
+
+### 物流管理
+
+```
+POST /api/shop/kuaishou/logistics/send                  # 发货
+```
+
+---
+
+## 8. OMS 订单中台 (端口 8005)
+
+基础路径: `http://localhost:8005`
+
+统一订单管理中台，聚合多平台订单数据。
+
+### 健康检查
+
+```
+GET /         # 服务状态
+GET /health   # 健康检查
+```
+
+> ⚠️ 订单 CRUD 接口待实现
+
+---
+
+## 9. 拼多多客服适配器 (端口 8003)
+
+基础路径: `http://localhost:8003`
+
+拼多多客服自动化服务，基于 Playwright 实现浏览器自动化。
+
+### 健康检查
+
+```
+GET /         # 服务状态
+GET /health   # 健康检查
+```
+
+> ⚠️ 客服自动化接口待实现
+
+---
+
+## 10. 闲鱼适配器 (端口 8004)
+
+基础路径: `http://localhost:8004`
+
+闲鱼平台自动化服务，基于 Playwright 实现浏览器自动化。
+
+### 健康检查
+
+```
+GET /         # 服务状态
+GET /health   # 健康检查
+```
+
+> ⚠️ 自动化接口待实现
 
 ---
 
@@ -808,10 +1399,93 @@ interface ReportRequest {
 }
 ```
 
+### ProductCreateRequest (商品服务)
+
+```typescript
+interface ProductCreateRequest {
+  name: string;           // 商品名称 (1-200字符)
+  sku: string;            // SKU编码 (唯一)
+  platform: string;       // 平台: douyin / pdd / xianyu / kuaishou
+  category: string;       // 商品分类
+  price: number;          // 售价 (>0)
+  cost?: number;          // 成本价 (默认0)
+  stock?: number;         // 库存数量 (默认0)
+  image?: string;         // 图片URL
+  description?: string;   // 描述
+  status?: string;        // 状态 (默认 active)
+}
+
+interface ProductUpdateRequest {
+  name?: string;
+  sku?: string;
+  platform?: string;
+  category?: string;
+  price?: number;
+  cost?: number;
+  stock?: number;
+  image?: string;
+  description?: string;
+  status?: string;
+  sales?: number;
+}
+
+interface BatchActionRequest {
+  product_ids: number[];  // 商品ID列表
+}
+
+interface BatchPriceAdjustRequest {
+  product_ids: number[];
+  adjust_type: "increase_pct" | "decrease_pct" | "increase_amt" | "decrease_amt";
+  adjust_value: number;   // 调整数值 (>0)
+}
+```
+
+### CategoryCreateRequest
+
+```typescript
+interface CategoryCreateRequest {
+  name: string;           // 分类名称 (1-100字符)
+  parent_id?: number;     // 父分类ID
+  sort_order?: number;    // 排序序号 (默认0)
+}
+```
+
+### CustomerCreateRequest / CustomerUpdateRequest
+
+```typescript
+interface CustomerCreateRequest {
+  name: string;           // 客户姓名 (1-100字符)
+  phone?: string;         // 手机号
+  email?: string;         // 邮箱
+  gender?: string;        // 性别: 男 / 女
+  level?: string;         // 等级: 普通 / 银卡 / 金卡 / 钻石
+  tags?: string[];        // 标签列表
+  avatar?: string;        // 头像URL
+  address?: string;       // 地址
+  total_spent?: number;   // 累计消费
+  order_count?: number;   // 订单数
+  last_order_time?: string;
+  points?: number;        // 积分
+  balance?: number;       // 账户余额
+}
+```
+
 ### Platform 枚举
 
 ```
 douyin | kuaishou | pdd | xianyu
+```
+
+### 商品状态枚举
+
+```
+active | draft | out_of_stock | disabled
+```
+
+### 客户等级枚举
+
+```
+普通 | 银卡 | 金卡 | 钻石
 ```
 
 ---
