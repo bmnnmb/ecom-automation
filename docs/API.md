@@ -11,6 +11,7 @@
   - [统一鉴权 /api/auth](#统一鉴权-apiauth)
   - [店铺管理 /api/shops](#店铺管理-apishops)
   - [商品管理 /api/products](#商品管理-apiproducts)
+  - [客户管理 /api/customers](#客户管理-apicustomers)
   - [订单管理 /api/orders](#订单管理-apiorders)
   - [客服消息 /api/messages](#客服消息-apimessages)
   - [售后服务 /api/aftersales](#售后服务-apiaftersales)
@@ -1115,7 +1116,9 @@ DELETE /api/categories/{category_id}
 
 ---
 
-### 客户管理
+### 客户管理 `/api/customers`
+
+> 代理到 product-service (端口 8006)
 
 #### 获取客户统计
 
