@@ -131,10 +131,17 @@ export async function sendMessage(conversationId, content) {
 }
 
 // ==================== Dashboard ====================
+// 注意: 使用相对路径通过 Vite 代理转发到 API 网关 (port 8000)
+// 不走 apiRequest() 因为 API_BASE 指向 douyin-adapter (port 8001)
 
 export async function fetchDashboardStats() {
   try {
-    const data = await apiRequest('/api/dashboard/stats');
+    const res = await fetch('/api/dashboard/stats', {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`Dashboard stats API error: ${res.status}`);
+    const json = await res.json();
+    const data = json.data || json;
     return { ...data, source: 'api' };
   } catch {
     return { ...generateDashboardStats(), source: 'mock' };
@@ -143,7 +150,12 @@ export async function fetchDashboardStats() {
 
 export async function fetchDashboardTrend(days = 7) {
   try {
-    const data = await apiRequest(`/api/dashboard/trend?days=${days}`);
+    const res = await fetch(`/api/dashboard/trend?days=${days}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`Dashboard trend API error: ${res.status}`);
+    const json = await res.json();
+    const data = json.data || json;
     return { ...data, source: 'api' };
   } catch {
     return null;
