@@ -268,4 +268,9 @@ export const DEFAULT_SETTINGS = {
     confidenceThreshold: 0.8,
     model: 'gpt-4',
   },
+  douyin: {
+    appKey: '',
+    appSecret: '',
+    apiUrl: 'http://localhost:8001',
+  },
 };

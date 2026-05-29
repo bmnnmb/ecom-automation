@@ -62,4 +62,5 @@ Thumbs.db
 *.tmp
 *.temp
 services/oms-service/data/
+services/api-gateway/data/
 *.db

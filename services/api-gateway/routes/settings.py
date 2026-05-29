@@ -52,6 +52,11 @@ DEFAULT_SETTINGS = {
         "confidenceThreshold": 0.8,
         "model": "gpt-4",
     },
+    "douyin": {
+        "appKey": "",
+        "appSecret": "",
+        "apiUrl": "http://localhost:8001",
+    },
 }
 
 
@@ -93,6 +98,7 @@ class SettingsUpdate(BaseModel):
     platforms: Optional[Dict[str, Any]] = None
     notifications: Optional[Dict[str, Any]] = None
     ai: Optional[Dict[str, Any]] = None
+    douyin: Optional[Dict[str, Any]] = None
 
 
 @router.get("")

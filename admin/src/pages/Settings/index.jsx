@@ -348,16 +348,32 @@ export default function Settings() {
                 {/* API配置 */}
                 <div className="form-group">
                   <label className="form-label">App Key</label>
-                  <input className="form-input" placeholder="输入抖音应用App Key" />
+                  <input
+                    className="form-input"
+                    placeholder="输入抖音应用App Key"
+                    value={settings.douyin?.appKey || ''}
+                    onChange={e => updateSetting('douyin', 'appKey', e.target.value)}
+                  />
                   <div className="form-hint">在抖音开放平台 → 管理中心 → 应用详情 中获取</div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">App Secret</label>
-                  <input className="form-input" type="password" placeholder="输入抖音应用App Secret" />
+                  <input
+                    className="form-input"
+                    type="password"
+                    placeholder="输入抖音应用App Secret"
+                    value={settings.douyin?.appSecret || ''}
+                    onChange={e => updateSetting('douyin', 'appSecret', e.target.value)}
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">后端API地址</label>
-                  <input className="form-input" defaultValue="http://localhost:8001" placeholder="后端服务地址" />
+                  <input
+                    className="form-input"
+                    placeholder="后端服务地址"
+                    value={settings.douyin?.apiUrl || 'http://localhost:8001'}
+                    onChange={e => updateSetting('douyin', 'apiUrl', e.target.value)}
+                  />
                   <div className="form-hint">抖店Adapter服务的地址，默认 http://localhost:8001</div>
                 </div>
 
