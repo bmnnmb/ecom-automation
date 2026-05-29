@@ -1,74 +1,82 @@
 # ecom-automation 项目进度跟踪
 
-> 自动生成于 2026-05-27 08:50 (定时任务)
+> 最后更新: 2026-05-30 (定时任务)
 
 ## 📊 总体进度概览
 
-| 指标 | 当前状态 | 上次统计 | 变化 |
-|------|----------|----------|------|
-| 后端服务 | 9个服务，97个Python文件，16,381行 | - | - |
-| 前端Admin | 12个页面，17个JSX文件，9,717行 | - | - |
-| 待修复BUG | 13个 (P0: 3 / P1: 5 / P2: 5) | - | - |
-| 已修复BUG | 0个 | - | - |
-| 最近24h提交 | 1次 | - | - |
-
-## 🔄 最近Git活动
-
-### 最近24小时
-- `a1c0886` 初始化项目管理文件 - BUG-TRACKING.md + PROGRESS.md
-
-### 近期重要提交
-- `42e9cfd` Jules Code Health Improvement - OMS service优化
-- `2e987db` 优化Products页面 - 抖音店铺后台风格
-- `9ff361a` 统一鉴权层 + 多平台SKU + 统一订单模型
+| 指标 | 当前状态 | 里程碑 |
+|------|----------|--------|
+| 后端服务 | 10 个服务，全部 Docker 化 | v0.1.0 |
+| 前端 Admin | 12 个页面，接入真实 API | v0.3.0 |
+| API 端点 | 90+ 个 (详见 docs/API.md) | v0.4.0 |
+| 服务 README | 10/10 完成 | ✅ |
+| 文档 | API / 部署 / 开发 / 排障 / 变更日志 | ✅ |
+| 待修复 BUG | 4 个 (P0: 2 / P1: 2) | 6 已修复 |
+| 最新版本 | v0.4.0 (2026-05-29) | 详见 CHANGELOG.md |
 
 ## 🏗️ 各服务状态
 
-| 服务 | 文件数 | 最后更新 | 状态 |
-|------|--------|----------|------|
-| api-gateway | 12 | 2026-04-25 | 骨架已建 |
-| oms-service | 19 | 2026-04-30 | 最近有优化 |
-| xianyu-adapter | 15 | 2026-04-20 | 骨架已建 |
-| pdd-cs-adapter | 12 | 2026-04-20 | 骨架已建 |
-| douyin-adapter | 11 | 2026-04-21 | 骨架已建 |
-| kuaishou-adapter | 9 | 2026-04-20 | 骨架已建 |
-| rag-service | 7 | 2026-04-20 | 骨架已建 |
-| competitor-crawler | 6 | 2026-04-23 | 骨架已建 |
-| hermes-control | 6 | 2026-04-20 | 骨架已建 |
+| 服务 | 端口 | 状态 | 说明 |
+|------|------|------|------|
+| api-gateway | 8000 | ✅ 运行中 | 统一 API 网关 + 代理层 |
+| douyin-adapter | 8001 | ✅ 运行中 | 抖店 OAuth + SDK |
+| kuaishou-adapter | 8002 | ✅ 运行中 | 快手 OAuth + Token 自动刷新 |
+| pdd-cs-adapter | 8003 | ✅ 运行中 | 拼多多客服 + 商品订单 API |
+| xianyu-adapter | 8004 | ⚠️ 骨架 | Playwright 自动化框架就绪 |
+| oms-service | 8005 | ✅ 运行中 | 订单/库存/工单/看板 CRUD |
+| product-service | 8006 | ✅ 运行中 | 商品 + 分类 + 客户 + Dashboard |
+| rag-service | 8006 | ⚠️ 部分完成 | 缓存管理已实现，RAG 核心待集成 |
+| hermes-control | 8080 | ✅ 运行中 | 总控、调度、技能执行、报表 |
+| competitor-crawler | 8008 | ✅ 运行中 | 反爬虫策略 + 竞品分析 |
 
-## 📱 Admin前端页面
+## 📱 Admin 前端页面状态
 
-| 页面 | 行数 | 状态 |
+| 页面 | 状态 | 说明 |
 |------|------|------|
-| Marketing | 1,288 | 已实现 |
-| SupplyChain | 1,041 | 已实现 |
-| Finance | 1,019 | 已实现 |
-| Products | 976 | 已实现 |
-| Analytics | 969 | 已实现 |
-| Customers | 820 | 已实现 |
-| Orders | 736 | 已实现 |
-| System | 689 | 已实现 |
-| Dashboard | 473 | 已实现 |
-| CustomerService | 447 | 已实现 |
-| Settings | 419 | 已实现 |
-| Competitors | 412 | 已实现 |
+| Dashboard | ✅ 真实数据 | stats/trend API + 可视化图表 |
+| Products | ✅ 真实数据 | 完整 CRUD + 批量调价 |
+| Orders | ✅ 真实数据 | 订单管理 + 确认收货 + 导出 |
+| Customers | ✅ 真实数据 | 批量操作 + 分群分析 |
+| Marketing | ✅ 已接入 API | 优惠券/活动/分销/佣金 |
+| Competitors | ✅ 已接入 API | 竞品分析 v4 + 趋势分析 |
+| Analytics | ✅ 已实现 | 多维度数据展示 |
+| Settings | ✅ 已接入 API | 抖音对接 Tab 真实存储 |
+| Finance | ✅ 已实现 | 财务数据页面 |
+| SupplyChain | ✅ 已实现 | 供应链管理 |
+| CustomerService | ✅ 已实现 | 客服消息管理 |
+| System | ✅ 已实现 | 系统设置 |
 
-## 🔴 关键问题
+## 📚 文档完整性
 
-1. **后端服务全部停在骨架阶段** — 最后一次实质性代码提交在4月底，各adapter核心业务逻辑未实现
-2. **前后端未联调** — Admin页面已建但API对接未完成
-3. **测试覆盖率为0%** — 无任何自动化测试
-4. **CI/CD未配置** — 无流水线，无自动部署
-5. **BUG修复停滞** — 13个已知BUG，0个已修复
+| 文档 | 路径 | 状态 |
+|------|------|------|
+| 项目 README | `README.md` | ✅ 完成 |
+| 变更日志 | `CHANGELOG.md` | ✅ 完成 |
+| API 文档 | `docs/API.md` (2031行) | ✅ 完成 |
+| OpenAPI 规范 | `docs/openapi.yaml` | ✅ 完成 |
+| 部署指南 | `docs/DEPLOY.md` | ✅ 完成 |
+| 开发指南 | `docs/DEVELOPMENT.md` | ✅ 完成 |
+| 故障排除 | `docs/TROUBLESHOOTING.md` | ✅ 完成 |
+| BUG 跟踪 | `BUG-TRACKING.md` | ✅ 完成 |
+| 服务 README | `services/*/README.md` | ✅ 10/10 |
+
+## 🔴 待处理问题
+
+详见 `BUG-TRACKING.md`
+
+| 优先级 | 数量 | 关键问题 |
+|--------|------|----------|
+| P0 | 2 | 前端页面骨架功能不完整、路由配置缺失 |
+| P1 | 2 | OMS 跨平台订单统一模型、商品管理功能不完整 |
+| P2 | 4 | 暗色模式、RAG 集成、日志监控、CI/CD |
 
 ## 🎯 下一步优先级
 
-1. **P0 BUG修复** — 补充缺失页面、完善路由配置、统一错误处理
-2. **后端API实现** — 各adapter从骨架到可运行的CRUD
-3. **前后端联调** — 确保Admin能调通后端API
-4. **测试补充** — 核心业务流程的单元测试和集成测试
-5. **CI/CD搭建** — Docker化 + GitHub Actions
+1. **P0 修复** — 前端页面完整业务逻辑接入
+2. **RAG 集成** — rag-service 与主系统对接
+3. **测试补充** — 核心业务流程的单元测试和集成测试
+4. **CI/CD 搭建** — GitHub Actions + 自动部署
 
 ---
-> 由 Hermes Agent 定时任务自动生成
-> 下次更新: 待配置
+
+> 由 Hermes Agent 文档工程师定时任务维护
