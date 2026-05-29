@@ -6,6 +6,7 @@ Hermes 多平台电商自动化系统 - API网关
   /api/auth        → 本地 OAuth 鉴权
   /api/shops        → 本地店铺管理（内存+未来接数据库）
   /api/products     → product-service:8006
+  /api/customers    → product-service:8006
   /api/orders       → oms-service:8005
   /api/inventory    → oms-service:8005
   /api/tickets      → oms-service:8005
@@ -28,7 +29,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 导入路由
-from routes import shops, products, orders, messages, aftersales, competitors, reports, dashboard, settings, inventory, tickets
+from routes import shops, products, orders, messages, aftersales, competitors, reports, dashboard, settings, inventory, tickets, customers
 from routes.auth import oauth
 
 # 导入统一错误处理和中间件
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 API网关启动中...")
     logger.info("📦 服务路由映射已加载:")
     logger.info("   /api/products   → product-service:8006")
+    logger.info("   /api/customers  → product-service:8006")
     logger.info("   /api/orders     → oms-service:8005")
     logger.info("   /api/inventory  → oms-service:8005")
     logger.info("   /api/tickets    → oms-service:8005")
@@ -94,6 +96,7 @@ app.include_router(settings.router, prefix="/api/settings", tags=["系统设置"
 
 # 代理路由 → 转发到后端微服务
 app.include_router(products.router, prefix="/api/products", tags=["商品管理 (→product-service)"])
+app.include_router(customers.router, prefix="/api/customers", tags=["客户管理 (→product-service)"])
 app.include_router(orders.router, prefix="/api/orders", tags=["订单管理 (→oms-service)"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["库存管理 (→oms-service)"])
 app.include_router(tickets.router, prefix="/api/tickets", tags=["工单管理 (→oms-service)"])
@@ -113,6 +116,7 @@ async def root():
             "auth": "/api/auth",
             "shops": "/api/shops",
             "products": "/api/products → product-service:8006",
+            "customers": "/api/customers → product-service:8006",
             "orders": "/api/orders → oms-service:8005",
             "inventory": "/api/inventory → oms-service:8005",
             "tickets": "/api/tickets → oms-service:8005",

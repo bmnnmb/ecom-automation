@@ -137,12 +137,14 @@ export default function Customers() {
   });
 
   // 加载客户列表
-  const loadCustomers = useCallback(async (page = 1, pageSize = 10) => {
+  const loadCustomers = useCallback(async (page = 1, pageSize = 10, filterOverrides = null) => {
     setLoading(true);
     try {
       const params = { page, page_size: pageSize };
-      if (filters.keyword) params.keyword = filters.keyword;
-      if (filters.level) params.level = filters.level;
+      const kw = filterOverrides?.keyword ?? filters.keyword;
+      const lv = filterOverrides?.level ?? filters.level;
+      if (kw) params.keyword = kw;
+      if (lv) params.level = lv;
 
       const result = await fetchCustomers(params);
       setCustomers(result.items || []);
@@ -188,10 +190,7 @@ export default function Customers() {
   // 重置筛选
   const handleReset = () => {
     setFilters({ keyword: '', level: undefined, dateRange: null });
-    // 延迟一帧等状态更新后再加载
-    setTimeout(() => {
-      loadCustomers(1, pagination.pageSize);
-    }, 0);
+    loadCustomers(1, pagination.pageSize, { keyword: '', level: undefined });
   };
 
   // 查看客户详情

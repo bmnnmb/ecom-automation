@@ -32,6 +32,10 @@ export default defineConfig({
         target: 'http://localhost:8006',
         changeOrigin: true,
       },
+      '/api/customers': {
+        target: 'http://localhost:8006',
+        changeOrigin: true,
+      },
       // API 网关其他路由 → port 8000
       '/api': {
         target: 'http://localhost:8000',
