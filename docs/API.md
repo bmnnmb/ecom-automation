@@ -1,8 +1,8 @@
 # ecom-automation API Documentation
 
-> 最后更新: 2026-05-29 | 源码扫描自 10 个微服务
+> 最后更新: 2026-05-29 | 源码扫描自 11 个微服务
 
-本文档覆盖 ecom-automation 项目的全部 REST API 端点，共 **10 个服务、80+ 个接口**。
+本文档覆盖 ecom-automation 项目的全部 REST API 端点，共 **11 个服务、95+ 个接口**。
 
 ## 目录
 
@@ -16,6 +16,10 @@
   - [售后服务 /api/aftersales](#售后服务-apiaftersales)
   - [竞品分析 /api/competitors](#竞品分析-apicompetitors)
   - [报表统计 /api/reports](#报表统计-apireports)
+  - [库存管理 /api/inventory](#库存管理-apiinventory)
+  - [工单管理 /api/tickets](#工单管理-apitickets)
+  - [运营看板 /api/dashboard](#运营看板-apidashboard)
+  - [系统设置 /api/settings](#系统设置-apisettings)
 - [2. Hermes 总控服务 (端口 8080)](#2-hermes-总控服务-端口-8080)
   - [任务管理](#任务管理)
   - [技能执行](#技能执行)
@@ -23,6 +27,10 @@
   - [业务目标处理](#业务目标处理)
 - [3. RAG 知识库服务 (端口 8006)](#3-rag-知识库服务-端口-8006)
 - [4. 竞品爬虫服务 (端口 8008)](#4-竞品爬虫服务-端口-8008)
+  - [爬取任务](#爬取任务)
+  - [任务调度](#任务调度)
+  - [数据分析](#数据分析)
+  - [数据查询](#数据查询)
 - [5. 商品管理服务 (端口 8006)](#5-商品管理服务-端口-8006)
   - [商品 CRUD](#商品-crud)
   - [商品批量操作](#商品批量操作)
@@ -31,6 +39,10 @@
 - [6. 抖店适配器 (端口 8001)](#6-抖店适配器-端口-8001)
 - [7. 快手适配器 (端口 8002)](#7-快手适配器-端口-8002)
 - [8. OMS 订单中台 (端口 8005)](#8-oms-订单中台-端口-8005)
+  - [订单管理](#订单管理)
+  - [库存管理](#库存管理)
+  - [工单管理](#工单管理)
+  - [运营看板](#运营看板)
 - [9. 拼多多客服适配器 (端口 8003)](#9-拼多多客服适配器-端口-8003)
 - [10. 闲鱼适配器 (端口 8004)](#10-闲鱼适配器-端口-8004)
 - [数据模型](#数据模型)
@@ -46,7 +58,7 @@
 | kuaishou-adapter | 8002 | FastAPI + SDK | 快手平台适配器 |
 | pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化 |
 | xianyu-adapter | 8004 | FastAPI + Playwright | 闲鱼自动化 |
-| oms-service | 8005 | FastAPI | 订单中台 |
+| oms-service | 8005 | FastAPI + SQLAlchemy | 订单中台 (订单/库存/工单/看板) |
 | product-service | 8006 | FastAPI + SQLAlchemy | 商品与分类管理 |
 | rag-service | 8006 | FastAPI + pgvector | RAG 知识库检索 |
 | hermes-control | 8080 | Python + Hermes | 总控、策略、调度、报表 |
@@ -296,52 +308,106 @@ PUT /api/products/{product_id}/status?status={status}
 
 ### 订单管理 `/api/orders`
 
-> ⚠️ 待实现
+> 代理到 OMS 订单中台，详见 [OMS 订单管理](#订单管理-apiorders)
 
 ```
-GET /api/orders                  # 订单列表（占位）
-GET /api/orders/{order_id}       # 订单详情（占位）
+GET  /api/orders                # 订单列表
+POST /api/orders                # 创建订单
+GET  /api/orders/{order_id}     # 订单详情
+PUT  /api/orders/{order_id}/status  # 更新状态
+DELETE /api/orders/{order_id}   # 删除订单
 ```
 
 ---
 
 ### 客服消息 `/api/messages`
 
-> ⚠️ 待实现
-
 ```
-GET /api/messages                # 消息列表（占位）
+GET  /api/messages                   # 消息列表
+POST /api/messages                   # 发送消息
+GET  /api/messages/{message_id}      # 消息详情
+POST /api/messages/{message_id}/reply  # 回复消息
 ```
 
 ---
 
 ### 售后服务 `/api/aftersales`
 
-> ⚠️ 待实现
-
 ```
-GET /api/aftersales              # 售后列表（占位）
+GET   /api/aftersales                    # 售后列表
+POST  /api/aftersales                    # 创建售后
+GET   /api/aftersales/{aftersale_id}     # 售后详情
+PATCH /api/aftersales/{aftersale_id}     # 更新售后
 ```
 
 ---
 
 ### 竞品分析 `/api/competitors`
 
-> ⚠️ 待实现
-
 ```
-GET /api/competitors             # 竞品列表（占位）
+GET    /api/competitors                     # 竞品列表
+POST   /api/competitors                     # 添加竞品
+GET    /api/competitors/{competitor_id}      # 竞品详情
+DELETE /api/competitors/{competitor_id}      # 删除竞品
 ```
 
 ---
 
 ### 报表统计 `/api/reports`
 
-> ⚠️ 待实现
+```
+GET /api/reports/daily           # 日报
+GET /api/reports/weekly          # 周报
+GET /api/reports/monthly         # 月报
+```
+
+---
+
+### 库存管理 `/api/inventory`
+
+> 代理到 OMS 订单中台，详见 [OMS 库存管理](#库存管理-apiinventory)
 
 ```
-GET /api/reports/daily           # 日报（占位）
-GET /api/reports/weekly          # 周报（占位）
+GET  /api/inventory                   # 库存列表
+GET  /api/inventory/low-stock         # 低库存预警
+GET  /api/inventory/{sku_id}          # 库存详情
+POST /api/inventory                   # 创建库存
+PUT  /api/inventory/{sku_id}/stock    # 更新库存
+```
+
+---
+
+### 工单管理 `/api/tickets`
+
+> 代理到 OMS 订单中台，详见 [OMS 工单管理](#工单管理-apitickets)
+
+```
+GET  /api/tickets                    # 工单列表
+POST /api/tickets                    # 创建工单
+GET  /api/tickets/{ticket_id}        # 工单详情
+PUT  /api/tickets/{ticket_id}/status # 更新状态
+PUT  /api/tickets/{ticket_id}/assign # 分配工单
+```
+
+---
+
+### 运营看板 `/api/dashboard`
+
+> 代理到 OMS 订单中台，详见 [OMS 运营看板](#运营看板-apidashboard)
+
+```
+GET /api/dashboard           # 看板统计
+GET /api/dashboard/stats     # 综合统计
+GET /api/dashboard/trend     # 趋势数据
+```
+
+---
+
+### 系统设置 `/api/settings`
+
+```
+GET /api/settings            # 获取设置
+PUT /api/settings            # 更新设置
 ```
 
 ---
@@ -1292,7 +1358,7 @@ POST /api/shop/kuaishou/logistics/send                  # 发货
 
 基础路径: `http://localhost:8005`
 
-统一订单管理中台，聚合多平台订单数据。
+统一订单管理中台，聚合多平台订单、库存、工单、运营看板数据。通过 API Gateway 代理，前端统一通过 `/api/orders`、`/api/inventory`、`/api/tickets`、`/api/dashboard` 访问。
 
 ### 健康检查
 
@@ -1301,7 +1367,462 @@ GET /         # 服务状态
 GET /health   # 健康检查
 ```
 
-> ⚠️ 订单 CRUD 接口待实现
+---
+
+### 订单管理 `/api/orders`
+
+#### 获取订单列表
+
+```
+GET /api/orders
+```
+
+**响应** — `Order[]`
+
+#### 获取订单统计
+
+```
+GET /api/orders/statistics
+```
+
+#### 获取最近订单
+
+```
+GET /api/orders/recent
+```
+
+#### 获取高风险订单
+
+```
+GET /api/orders/high-risk
+```
+
+#### 获取退款中订单
+
+```
+GET /api/orders/refunding
+```
+
+#### 搜索订单
+
+```
+GET /api/orders/search
+```
+
+#### 获取订单详情
+
+```
+GET /api/orders/{order_id}
+```
+
+**响应 200** — `Order`
+**响应 404** — 订单不存在
+
+#### 创建订单
+
+```
+POST /api/orders
+```
+
+**请求体** — `Order`
+```json
+{
+  "order_id": "ORD001",
+  "platform": "douyin",
+  "platform_order_id": "DY123456",
+  "status": "pending",
+  "payment_status": "unpaid",
+  "items": [
+    {
+      "sku_id": "SKU001",
+      "product_name": "Type-C数据线",
+      "quantity": 2,
+      "unit_price": 29.99,
+      "total_price": 59.98
+    }
+  ],
+  "total_amount": 59.98,
+  "discount_amount": 5.00,
+  "actual_amount": 54.98,
+  "customer": {
+    "customer_id": "C001",
+    "name": "张三",
+    "phone": "13800138000",
+    "address": "北京市朝阳区xxx路",
+    "platform_uid": "uid_123"
+  }
+}
+```
+
+#### 同步订单 (手动触发)
+
+```
+POST /api/orders/sync/{platform}/{shop_id}
+```
+
+#### 更新订单状态
+
+```
+PUT /api/orders/{order_id}/status
+```
+
+#### 更新支付状态
+
+```
+PUT /api/orders/{order_id}/payment-status
+```
+
+#### 添加订单标签
+
+```
+POST /api/orders/{order_id}/tags
+```
+
+#### 移除订单标签
+
+```
+DELETE /api/orders/{order_id}/tags
+```
+
+#### 设置风险等级
+
+```
+PUT /api/orders/{order_id}/risk-level
+```
+
+#### 获取指定平台订单
+
+```
+GET /api/orders/platform/{platform}
+```
+
+#### 获取指定状态订单
+
+```
+GET /api/orders/status/{status}
+```
+
+#### 删除订单
+
+```
+DELETE /api/orders/{order_id}
+```
+
+---
+
+### 库存管理 `/api/inventory`
+
+#### 获取所有库存
+
+```
+GET /api/inventory
+```
+
+**响应** — `InventoryItem[]`
+
+#### 获取库存统计
+
+```
+GET /api/inventory/statistics
+```
+
+#### 获取低库存商品
+
+```
+GET /api/inventory/low-stock
+```
+
+#### 获取高风险商品
+
+```
+GET /api/inventory/high-risk
+```
+
+#### 搜索库存
+
+```
+GET /api/inventory/search
+```
+
+#### 获取库存详情
+
+```
+GET /api/inventory/{sku_id}
+```
+
+**响应 200** — `InventoryItem`
+
+#### 创建库存项目
+
+```
+POST /api/inventory
+```
+
+#### 手动触发SKU同步
+
+```
+POST /api/inventory/sync/{platform}/{shop_id}
+```
+
+#### 删除库存项目
+
+```
+DELETE /api/inventory/{sku_id}
+```
+
+#### 更新库存数量
+
+```
+PUT /api/inventory/{sku_id}/stock
+```
+
+#### 锁定库存
+
+```
+POST /api/inventory/{sku_id}/lock
+```
+
+#### 解锁库存
+
+```
+POST /api/inventory/{sku_id}/unlock
+```
+
+#### 发货扣减
+
+```
+POST /api/inventory/{sku_id}/ship
+```
+
+#### 到货增加
+
+```
+POST /api/inventory/{sku_id}/receive
+```
+
+#### 添加风险标签
+
+```
+POST /api/inventory/{sku_id}/risk-tags
+```
+
+#### 移除风险标签
+
+```
+DELETE /api/inventory/{sku_id}/risk-tags
+```
+
+#### 设置风险等级
+
+```
+PUT /api/inventory/{sku_id}/risk-level
+```
+
+#### 获取指定平台库存
+
+```
+GET /api/inventory/platform/{platform}
+```
+
+---
+
+### 工单管理 `/api/tickets`
+
+#### 获取所有工单
+
+```
+GET /api/tickets
+```
+
+**响应** — `Ticket[]`
+
+#### 获取工单统计
+
+```
+GET /api/tickets/statistics
+```
+
+#### 获取最近工单
+
+```
+GET /api/tickets/recent
+```
+
+#### 获取待处理工单
+
+```
+GET /api/tickets/open
+```
+
+#### 获取高优先级工单
+
+```
+GET /api/tickets/high-priority
+```
+
+#### 获取超时工单
+
+```
+GET /api/tickets/overdue
+```
+
+#### 获取退款工单
+
+```
+GET /api/tickets/refund
+```
+
+#### 获取投诉工单
+
+```
+GET /api/tickets/complaint
+```
+
+#### 搜索工单
+
+```
+GET /api/tickets/search
+```
+
+#### 获取工单详情
+
+```
+GET /api/tickets/{ticket_id}
+```
+
+**响应 200** — `Ticket`
+
+#### 创建工单
+
+```
+POST /api/tickets
+```
+
+#### 更新工单状态
+
+```
+PUT /api/tickets/{ticket_id}/status
+```
+
+#### 分配工单
+
+```
+PUT /api/tickets/{ticket_id}/assign
+```
+
+#### 解决工单
+
+```
+PUT /api/tickets/{ticket_id}/resolve
+```
+
+#### 关闭工单
+
+```
+PUT /api/tickets/{ticket_id}/close
+```
+
+#### 更新退款信息
+
+```
+PUT /api/tickets/{ticket_id}/refund
+```
+
+#### 添加工单标签
+
+```
+POST /api/tickets/{ticket_id}/tags
+```
+
+#### 移除工单标签
+
+```
+DELETE /api/tickets/{ticket_id}/tags
+```
+
+#### 设置工单优先级
+
+```
+PUT /api/tickets/{ticket_id}/priority
+```
+
+#### 获取指定订单工单
+
+```
+GET /api/tickets/order/{order_id}
+```
+
+#### 获取指定平台工单
+
+```
+GET /api/tickets/platform/{platform}
+```
+
+#### 获取指定处理人工单
+
+```
+GET /api/tickets/assignee/{assignee}
+```
+
+---
+
+### 运营看板 `/api/dashboard`
+
+#### 获取看板统计
+
+```
+GET /api/dashboard
+```
+
+**响应** — `DashboardStats`
+```json
+{
+  "total_orders": 150,
+  "pending_orders": 12,
+  "processing_orders": 8,
+  "completed_orders": 120,
+  "total_revenue": 45000.00,
+  "today_revenue": 3200.00,
+  "total_tickets": 25,
+  "open_tickets": 5,
+  "resolved_tickets": 18,
+  "low_stock_items": 3,
+  "high_risk_items": 1,
+  "platform_stats": {},
+  "recent_orders": [],
+  "recent_tickets": []
+}
+```
+
+#### 获取综合统计
+
+```
+GET /api/dashboard/stats
+```
+
+#### 获取趋势数据
+
+```
+GET /api/dashboard/trend
+```
+
+#### 获取概览数据
+
+```
+GET /api/dashboard/overview
+```
+
+#### 获取指定平台数据
+
+```
+GET /api/dashboard/platform/{platform}
+```
+
+#### 获取告警信息
+
+```
+GET /api/dashboard/alerts
+```
 
 ---
 
