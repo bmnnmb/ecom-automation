@@ -6,21 +6,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      // OMS 订单中台服务路由 → port 8005
-      '/api/orders': {
-        target: 'http://localhost:8005',
-        changeOrigin: true,
-      },
-      '/api/inventory': {
-        target: 'http://localhost:8005',
-        changeOrigin: true,
-      },
-      '/api/tickets': {
-        target: 'http://localhost:8005',
-        changeOrigin: true,
-      },
+      // Dashboard 数据聚合服务 → port 8006 (product-service)
       '/api/dashboard': {
-        target: 'http://localhost:8005',
+        target: 'http://localhost:8006',
         changeOrigin: true,
       },
       // 商品管理服务路由 → port 8006
