@@ -33,7 +33,7 @@
   - 闲鱼适配器：localhost:8003
   - 快手适配器：localhost:8004
   - OMS服务：localhost:8005
-  - RAG服务：localhost:8006
+  - RAG服务：localhost:8009
   - 竞品爬虫：localhost:8007
   - 控制中心：localhost:8008
 

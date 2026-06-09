@@ -5,6 +5,7 @@
 import json
 import hashlib
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -196,7 +197,11 @@ async def get_storage() -> Storage:
     """获取存储实例"""
     global _storage_instance
     if _storage_instance is None:
-        _storage_instance = Storage()
+        _storage_instance = Storage(
+            mongodb_url=os.getenv("MONGODB_URL", "mongodb://localhost:27017"),
+            db_name=os.getenv("MONGODB_DATABASE", "competitor_crawler"),
+            data_dir=os.getenv("DATA_DIR", "./data"),
+        )
         await _storage_instance.connect()
     return _storage_instance
 

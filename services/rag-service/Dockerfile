@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     RAG_SERVICE_HOST=0.0.0.0 \
-    RAG_SERVICE_PORT=8006
+    RAG_SERVICE_PORT=8009
 
 WORKDIR /app
 
@@ -25,9 +25,9 @@ COPY --chown=appuser:appuser . .
 
 USER appuser
 
-EXPOSE 8006
+EXPOSE 8009
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8006/health || exit 1
+    CMD curl -f http://localhost:8009/health || exit 1
 
 CMD ["python", "main.py"]

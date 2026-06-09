@@ -91,7 +91,7 @@
   - `xianyu-adapter` (8004) — 闲鱼自动化
   - `oms-service` (8005) — 订单中台
   - `product-service` (8006) — 商品与分类管理
-  - `rag-service` (8006) — RAG 知识库检索
+  - `rag-service` (8009) — RAG 知识库检索
   - `hermes-control` (8080) — 总控、策略、调度、报表
   - `competitor-crawler` (8008) — 竞品数据采集与分析
 - ✨ Admin 前端 12 个页面（Dashboard、Products、Orders、Customers、Marketing、Analytics、Competitors、CustomerService、Finance、SupplyChain、Settings、System）

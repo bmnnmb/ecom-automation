@@ -25,7 +25,7 @@
 | xianyu-adapter | 8004 | ⚠️ 骨架 | Playwright 自动化框架就绪 |
 | oms-service | 8005 | ✅ 运行中 | 订单/库存/工单/看板 CRUD |
 | product-service | 8006 | ✅ 运行中 | 商品 + 分类 + 客户 + Dashboard |
-| rag-service | 8006 | ⚠️ 部分完成 | 缓存管理已实现，RAG 核心待集成 |
+| rag-service | 8009 | ⚠️ 部分完成 | 缓存管理已实现，RAG 核心待集成 |
 | hermes-control | 8080 | ✅ 运行中 | 总控、调度、技能执行、报表 |
 | competitor-crawler | 8008 | ✅ 运行中 | 反爬虫策略 + 竞品分析 |
 

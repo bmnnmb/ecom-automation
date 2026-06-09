@@ -20,7 +20,7 @@
             ├───────────────┬───────────────┬───────────────┐
             ▼               ▼               ▼               ▼
   [平台适配器服务]   [抓取/RPA服务]    [知识库服务]      [OMS服务]
-  Douyin :8001      Xianyu :8004      RAG :8006         OMS :8005
+  Douyin :8001      Xianyu :8004      RAG :8009         OMS :8005
   Kuaishou :8002    PDD CS :8003
                     Crawler :8008
   [ API Gateway :8000 ]  [ Product Service :8006 ]
@@ -36,7 +36,7 @@
 | pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化 |
 | xianyu-adapter | 8004 | FastAPI + Playwright | 闲鱼自动化 |
 | oms-service | 8005 | FastAPI + SQLAlchemy | 订单中台 (订单/库存/工单/看板) |
-| rag-service | 8006 | FastAPI + pgvector | RAG 知识库检索 |
+| rag-service | 8009 | FastAPI + pgvector | RAG 知识库检索 |
 | hermes-control | 8080 | Python + Hermes | 总控、策略、调度、报表 |
 | competitor-crawler | 8008 | Python asyncio | 竞品数据采集与分析 |
 | product-service | 8006 | FastAPI + SQLAlchemy | 商品与分类管理 |
@@ -89,7 +89,7 @@ docker-compose up -d
 | 拼多多客服 | 8003 | 客服自动化 | `http://localhost:8003/docs` |
 | 闲鱼适配器 | 8004 | 闲鱼自动化 | `http://localhost:8004/docs` |
 | OMS 服务 | 8005 | 订单中台 (订单/库存/工单/看板) | `http://localhost:8005/docs` |
-| RAG 知识库 | 8006 | 知识检索 | `http://localhost:8006/docs` |
+| RAG 知识库 | 8009 | 知识检索 | `http://localhost:8009/docs` |
 | Hermes 总控 | 8080 | 任务调度/技能执行/报表 | `http://localhost:8080/docs` |
 | 竞品爬虫 | 8008 | 竞品数据采集与分析 | `http://localhost:8008/docs` |
 | 商品服务 | 8006 | 商品/分类/客户管理 | `http://localhost:8006/docs` |
