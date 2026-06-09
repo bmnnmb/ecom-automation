@@ -2,6 +2,7 @@
 系统管理API路由
 """
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -60,7 +61,8 @@ async def get_config():
         "browser_headless": settings.BROWSER_HEADLESS,
         "high_risk_keywords": settings.HIGH_RISK_KEYWORDS,
         "api_base_url": settings.PDD_API_BASE_URL,
-        "workbench_url": settings.PDD_WORKBENCH_URL
+        "workbench_url": settings.PDD_WORKBENCH_URL,
+        "pdd_data_dir": settings.PDD_DATA_DIR,
     }
 
 
@@ -102,6 +104,58 @@ async def restart_service():
     # 这里应该实现服务重启逻辑
     # 注意：实际部署时需要谨慎处理
     return {"message": "重启指令已发送"}
+
+
+@router.post("/pdd-login/start")
+async def start_pdd_login():
+    """启动拼多多扫码登录"""
+    from playwright_bot import playwright_bot
+
+    try:
+        screenshot_path = await playwright_bot.start_qr_login()
+        return {
+            "status": "success",
+            "message": "请扫描二维码完成登录",
+            "screenshot_url": "/api/v1/system/pdd-login/screenshot",
+            "screenshot_path": screenshot_path,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"启动扫码登录失败: {str(e)}")
+
+
+@router.get("/pdd-login/screenshot")
+async def get_pdd_login_screenshot():
+    """获取当前二维码截图"""
+    from playwright_bot import playwright_bot
+
+    path = playwright_bot.login_screenshot_path
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="登录二维码截图不存在")
+    return FileResponse(str(path), media_type="image/png")
+
+
+@router.get("/pdd-login/status")
+async def get_pdd_login_status():
+    """检查拼多多扫码登录状态"""
+    from playwright_bot import playwright_bot
+
+    try:
+        logged_in = await playwright_bot.check_login_status()
+        return {
+            "logged_in": logged_in,
+            "message": "已登录" if logged_in else "等待扫码确认",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"检查登录状态失败: {str(e)}")
+
+
+@router.post("/pdd-login/cancel")
+async def cancel_pdd_login():
+    """取消拼多多扫码登录"""
+    from playwright_bot import playwright_bot
+
+    await playwright_bot.close()
+    return {"status": "success", "message": "扫码登录已取消"}
 
 
 @router.get("/health")

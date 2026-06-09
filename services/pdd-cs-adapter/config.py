@@ -1,10 +1,10 @@
 """
 拼多多客服服务配置
 """
-import os
 from typing import Optional
-from pydantic_settings import BaseSettings
-from pydantic import Field
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     PORT: int = Field(default=8000, env="PORT")
     
     # 拼多多API配置
-    PDD_CLIENT_ID: str = Field(..., env="PDD_CLIENT_ID")
-    PDD_CLIENT_SECRET: str = Field(..., env="PDD_CLIENT_SECRET")
+    PDD_CLIENT_ID: Optional[str] = Field(default=None, env="PDD_CLIENT_ID")
+    PDD_CLIENT_SECRET: Optional[str] = Field(default=None, env="PDD_CLIENT_SECRET")
     PDD_ACCESS_TOKEN: Optional[str] = Field(default=None, env="PDD_ACCESS_TOKEN")
     PDD_API_BASE_URL: str = Field(
         default="https://gw-api.pinduoduo.com/api/router",
@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     )
     PDD_USERNAME: Optional[str] = Field(default=None, env="PDD_USERNAME")
     PDD_PASSWORD: Optional[str] = Field(default=None, env="PDD_PASSWORD")
+    PDD_DATA_DIR: str = Field(default="/app/data", env="PDD_DATA_DIR")
     
     # 数据库配置
     DATABASE_URL: str = Field(
@@ -65,11 +66,27 @@ class Settings(BaseSettings):
     # 日志配置
     LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
     LOG_FILE: Optional[str] = Field(default=None, env="LOG_FILE")
+
+    @field_validator(
+        "PDD_CLIENT_ID",
+        "PDD_CLIENT_SECRET",
+        "PDD_ACCESS_TOKEN",
+        "PDD_USERNAME",
+        "PDD_PASSWORD",
+        mode="before",
+    )
+    @classmethod
+    def empty_string_to_none(cls, value):
+        if value == "":
+            return None
+        return value
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 # 创建全局设置实例

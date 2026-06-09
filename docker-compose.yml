@@ -180,7 +180,10 @@ services:
       PDD_CLIENT_ID: ${PDD_CLIENT_ID:-}
       PDD_CLIENT_SECRET: ${PDD_CLIENT_SECRET:-}
       PDD_ACCESS_TOKEN: ${PDD_ACCESS_TOKEN:-}
+      PDD_DATA_DIR: /app/data
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - pdd_data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -430,6 +433,8 @@ volumes:
   xianyu_data:
     driver: local
   competitor_data:
+    driver: local
+  pdd_data:
     driver: local
   mongodb_data:
     driver: local

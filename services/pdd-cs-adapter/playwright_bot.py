@@ -4,6 +4,8 @@
 """
 import asyncio
 import logging
+import os
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
@@ -32,19 +34,28 @@ class PlaywrightBot:
         self.page: Optional[Page] = None
         self.is_logged_in = False
         self.message_handler: Optional[MessageHandler] = None
-    
+        self.data_dir = Path(os.getenv("PDD_DATA_DIR", settings.PDD_DATA_DIR))
+        self.storage_state_path = self.data_dir / "pdd_storage_state.json"
+        self.login_screenshot_path = self.data_dir / "pdd_login.png"
+
     async def start(self):
         """启动浏览器"""
+        if self.page:
+            return
+
         try:
             self.playwright = await async_playwright().start()
             self.browser = await self.playwright.chromium.launch(
                 headless=settings.BROWSER_HEADLESS,
                 args=['--no-sandbox', '--disable-setuid-sandbox']
             )
-            self.context = await self.browser.new_context(
-                viewport={'width': 1920, 'height': 1080},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            )
+            context_kwargs = {
+                'viewport': {'width': 1920, 'height': 1080},
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            if self.storage_state_path.exists():
+                context_kwargs["storage_state"] = str(self.storage_state_path)
+            self.context = await self.browser.new_context(**context_kwargs)
             self.page = await self.context.new_page()
             logger.info("浏览器启动成功")
         except Exception as e:
@@ -53,18 +64,110 @@ class PlaywrightBot:
     
     async def close(self):
         """关闭浏览器"""
-        try:
-            if self.page:
+        close_errors = []
+
+        if self.page:
+            try:
                 await self.page.close()
-            if self.context:
+            except Exception as e:
+                close_errors.append(e)
+        if self.context:
+            try:
                 await self.context.close()
-            if self.browser:
+            except Exception as e:
+                close_errors.append(e)
+        if self.browser:
+            try:
                 await self.browser.close()
-            if self.playwright:
+            except Exception as e:
+                close_errors.append(e)
+        if self.playwright:
+            try:
                 await self.playwright.stop()
+            except Exception as e:
+                close_errors.append(e)
+
+        self.page = None
+        self.context = None
+        self.browser = None
+        self.playwright = None
+        self.is_logged_in = False
+
+        if close_errors:
+            logger.error(f"关闭浏览器时出错: {close_errors[0]}")
+        else:
             logger.info("浏览器已关闭")
-        except Exception as e:
-            logger.error(f"关闭浏览器时出错: {e}")
+
+    async def start_qr_login(self) -> str:
+        """启动二维码登录并返回截图路径"""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        if not self.page:
+            await self.start()
+
+        await self.page.goto(settings.PDD_WORKBENCH_URL, wait_until='networkidle')
+        await self.capture_login_screenshot()
+        return str(self.login_screenshot_path)
+
+    async def capture_login_screenshot(self) -> str:
+        """保存登录页截图"""
+        if not self.page:
+            raise RuntimeError("browser is not started")
+
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        await self.page.screenshot(path=str(self.login_screenshot_path), full_page=True)
+        return str(self.login_screenshot_path)
+
+    async def check_login_status(self) -> bool:
+        """检查当前是否已登录工作台"""
+        if not self.page:
+            return False
+
+        login_markers = ['text=账号登录', 'text=验证码登录', 'text=扫码登录', 'text=手机扫码登录']
+        for marker in login_markers:
+            try:
+                if await self.page.locator(marker).count() > 0:
+                    await self.capture_login_screenshot()
+                    return False
+            except Exception:
+                continue
+
+        auth_markers = [
+            '.user-avatar',
+            '[data-testid="user-avatar"]',
+            'text=店铺概况',
+            'text=消息中心',
+            'text=多多客服',
+            'text=商品管理',
+            'text=订单查询',
+        ]
+        for marker in auth_markers:
+            try:
+                if await self.page.locator(marker).count() > 0:
+                    await self.save_storage_state()
+                    self.is_logged_in = True
+                    return True
+            except Exception:
+                continue
+
+        current_url = getattr(self.page, "url", "").lower()
+        logged_in_url_markers = ['/chat', '/message', '/goods', '/order', '/dashboard', '/home']
+        if current_url and all(fragment not in current_url for fragment in ['login', 'passport']) and any(
+            fragment in current_url for fragment in logged_in_url_markers
+        ):
+            await self.save_storage_state()
+            self.is_logged_in = True
+            return True
+
+        await self.capture_login_screenshot()
+        return False
+
+    async def save_storage_state(self) -> None:
+        """持久化浏览器会话"""
+        if not self.context:
+            raise RuntimeError("browser context is not started")
+
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        await self.context.storage_state(path=str(self.storage_state_path))
 
     
     async def login(self) -> bool:
@@ -77,7 +180,7 @@ class PlaywrightBot:
             await self.page.goto(settings.PDD_WORKBENCH_URL, wait_until='networkidle')
             
             # 检查是否已经登录
-            if await self.page.locator('.user-avatar').count() > 0:
+            if await self.check_login_status():
                 logger.info("已经登录")
                 self.is_logged_in = True
                 return True
@@ -100,6 +203,7 @@ class PlaywrightBot:
             await self.page.wait_for_selector('.user-avatar', timeout=30000)
             logger.info("登录成功")
             self.is_logged_in = True
+            await self.save_storage_state()
             return True
             
         except Exception as e:
