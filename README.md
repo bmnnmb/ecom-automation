@@ -104,9 +104,12 @@ docker-compose up -d
 - **库存管理** `/api/inventory` — 库存查询、锁定/解锁、出入库（→oms-service）
 - **工单管理** `/api/tickets` — 工单创建、分配、退款、投诉（→oms-service）
 - **运营看板** `/api/dashboard` — 统计、趋势、概览、告警（→oms-service）
-- **客服消息** `/api/messages` — 消息收发、回复
+- **客服消息** `/api/messages` — 消息收发、回复、会话管理
 - **售后服务** `/api/aftersales` — 售后工单创建、处理
-- **竞品分析** `/api/competitors` — 竞品数据采集与分析
+- **竞品分析** `/api/competitors` — 竞品监控、调价、统计
+- **财务中心** `/api/finance` — 交易流水、提现、对账、趋势统计
+- **供应链** `/api/supply-chain` — 供应商、采购单、库存、出入库
+- **系统管理** `/api/system` — 用户、角色、操作日志、通知
 - **报表统计** `/api/reports` — 日报/周报/月报生成
 - **系统设置** `/api/settings` — 系统配置管理
 - **RAG 检索** `/rag/query` — 知识库语义检索

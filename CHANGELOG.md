@@ -15,6 +15,30 @@
 
 ---
 
+## [0.5.0] - 2026-06-09
+
+### 新功能
+- ✨ **登录认证系统** — 新增登录页面，支持账号密码登录，添加路由守卫
+- ✨ **竞品分析 API** — 接入真实 API 数据，支持添加监控、调价操作（20 条种子数据）
+- ✨ **客服中心 API** — 接入真实 API 数据，10 个会话种子数据，支持消息收发
+- ✨ **财务中心 API** — 新增 `/api/finance` 路由，50 条交易、10 条提现、8 条对账数据
+- ✨ **供应链 API** — 新增 `/api/supply-chain` 路由，5 个供应商、20 个采购单、12 个库存项
+- ✨ **系统管理 API** — 新增 `/api/system` 路由，5 个角色、5 个用户、50 条操作日志
+- ✨ **退出登录修复** — 清除所有 token 状态，显示当前登录用户名称
+
+### 修复
+- 🐛 API 网关代理路由 follow_redirects 问题
+- 🐛 API 网关默认服务 URL 改为 localhost（支持本地开发）
+- 🐛 消息路由顺序问题（conversations 在 {message_id} 之前）
+
+### 技术细节
+- api-gateway 新增 `finance.py`、`supply_chain.py`、`system.py` 路由
+- api-gateway 更新 `__init__.py` 注册新路由
+- api-gateway 更新 `proxy.py` 添加 `follow_redirects=True`
+- 前端所有页面接入真实 API 数据，失败时降级到 mock
+
+---
+
 ## [0.4.0] - 2026-05-29
 
 ### 文档完善

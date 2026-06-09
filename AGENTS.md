@@ -4,6 +4,17 @@
 
 本仓库是多服务电商自动化系统。Python FastAPI 微服务位于 `services/`，每个服务独立成目录，例如 `api-gateway`、`oms-service`、`rag-service` 和各平台适配器。React 管理后台位于 `admin/`，源码在 `admin/src/`，静态资源在 `admin/src/assets/`。共享模型在 `shared/`。数据库初始化和迁移文件在 `database/`，脚本在 `scripts/`，项目文档在 `docs/`，生成的测试报告在 `test-reports/`。
 
+### API 网关路由
+
+api-gateway (端口 8000) 提供以下代理路由：
+- `/api/products`、`/api/customers` → product-service:8006
+- `/api/orders`、`/api/inventory`、`/api/tickets`、`/api/dashboard` → oms-service:8005
+- `/api/finance`、`/api/supply-chain`、`/api/system`、`/api/messages`、`/api/competitors` → 本地种子数据
+
+### 前端认证
+
+前端使用 localStorage 存储 token 和用户信息，路由守卫在 `admin/src/router/index.jsx` 中实现。登录页面在 `admin/src/pages/Login/`。
+
 ## 构建、测试与开发命令
 
 - `pip install -r requirements.txt`：安装根目录 Python 依赖。
