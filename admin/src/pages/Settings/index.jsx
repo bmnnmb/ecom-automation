@@ -6,7 +6,15 @@
  * 后端不可用时降级使用 localStorage
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchSettings, saveSettings } from '../../api/index.js';
+import {
+  fetchSettings,
+  saveSettings,
+} from '../../api/index.js';
+import {
+  startPddQrLogin,
+  fetchPddQrLoginStatus,
+  cancelPddQrLogin,
+} from '../../api/pddLogin.js';
 import { DEFAULT_SETTINGS, PLATFORMS } from '../../utils/mock';
 import '../Competitors/Competitors.css';
 
@@ -19,6 +27,11 @@ export default function Settings() {
   const [dataSource, setDataSource] = useState(null);  // 'api' | 'local' | null
   const [douyinConnected, setDouyinConnected] = useState(!!localStorage.getItem('douyin_token'));
   const [hasChanges, setHasChanges] = useState(false);
+  const [pddLoginLoading, setPddLoginLoading] = useState(false);
+  const [pddLoginPolling, setPddLoginPolling] = useState(false);
+  const [pddLoginStatus, setPddLoginStatus] = useState('idle');
+  const [pddQrUrl, setPddQrUrl] = useState('');
+  const [pddLoginMessage, setPddLoginMessage] = useState('用于本地客服工作台自动化，不是开放平台授权');
 
   // 初始化: 从后端加载配置
   useEffect(() => {
@@ -86,6 +99,65 @@ export default function Settings() {
       setSaving(false);
     }
   }, [settings, saving]);
+
+  const handleStartPddQrLogin = useCallback(async () => {
+    setPddLoginLoading(true);
+    setPddLoginStatus('idle');
+    try {
+      const result = await startPddQrLogin();
+      setPddQrUrl(`${result.screenshot_url}?t=${Date.now()}`);
+      setPddLoginMessage(result.message || '请扫描二维码完成登录');
+      setPddLoginStatus('waiting');
+      setPddLoginPolling(true);
+    } catch (e) {
+      console.error('启动拼多多扫码登录失败:', e);
+      setPddLoginStatus('error');
+      setPddLoginMessage(e.message || '启动拼多多扫码登录失败');
+      setPddLoginPolling(false);
+    } finally {
+      setPddLoginLoading(false);
+    }
+  }, []);
+
+  const handleCancelPddQrLogin = useCallback(async () => {
+    try {
+      await cancelPddQrLogin();
+    } catch (e) {
+      console.error('取消拼多多扫码登录失败:', e);
+    } finally {
+      setPddLoginPolling(false);
+      setPddLoginStatus('idle');
+      setPddLoginMessage('用于本地客服工作台自动化，不是开放平台授权');
+      setPddQrUrl('');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pddLoginPolling) return undefined;
+
+    const timer = setInterval(async () => {
+      try {
+        const status = await fetchPddQrLoginStatus();
+        if (status.logged_in) {
+          setPddLoginStatus('success');
+          setPddLoginMessage(status.message || '拼多多商家后台已登录');
+          setPddLoginPolling(false);
+          return;
+        }
+
+        setPddLoginStatus('waiting');
+        setPddLoginMessage(status.message || '等待扫码确认');
+        setPddQrUrl(`/api/v1/system/pdd-login/screenshot?t=${Date.now()}`);
+      } catch (e) {
+        console.error('检查拼多多登录状态失败:', e);
+        setPddLoginStatus('error');
+        setPddLoginMessage(e.message || '检查拼多多登录状态失败');
+        setPddLoginPolling(false);
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [pddLoginPolling]);
 
   const tabs = [
     { key: 'general', label: '基础设置', icon: '⚙️' },
@@ -295,6 +367,96 @@ export default function Settings() {
                     </div>
                   );
                 })}
+
+                <div style={{
+                  padding: 20,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: 'var(--bg-2)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        background: '#E02E24',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 20,
+                        color: '#fff',
+                      }}>
+                        多
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 16 }}>拼多多扫码登录</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 4 }}>
+                          仅用于本地客服工作台自动化，不生成开放平台授权
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 12,
+                      padding: '4px 10px',
+                      borderRadius: 12,
+                      background: pddLoginStatus === 'success' ? '#E8FFEA' : pddLoginStatus === 'error' ? '#FFF1F0' : '#F2F3F5',
+                      color: pddLoginStatus === 'success' ? '#00B42A' : pddLoginStatus === 'error' ? '#F53F3F' : '#86909C',
+                    }}>
+                      {pddLoginStatus === 'success' ? '已登录' : pddLoginStatus === 'error' ? '登录异常' : pddLoginPolling ? '等待扫码' : '未启动'}
+                    </span>
+                  </div>
+
+                  <div style={{
+                    padding: '14px 16px',
+                    background: pddLoginStatus === 'error' ? '#FFF1F0' : pddLoginStatus === 'success' ? '#F6FFED' : '#F7F8FA',
+                    border: `1px solid ${pddLoginStatus === 'error' ? '#FFCCC7' : pddLoginStatus === 'success' ? '#B7EB8F' : 'var(--border)'}`,
+                    borderRadius: 8,
+                    color: pddLoginStatus === 'error' ? '#CF1322' : 'var(--text-2)',
+                    marginBottom: 16,
+                    lineHeight: 1.6,
+                  }}>
+                    {pddLoginMessage}
+                  </div>
+
+                  {pddQrUrl && (
+                    <div style={{ marginBottom: 16 }}>
+                      <img
+                        src={pddQrUrl}
+                        alt="拼多多扫码登录二维码"
+                        style={{
+                          width: 320,
+                          maxWidth: '100%',
+                          display: 'block',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)',
+                          background: '#fff',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleStartPddQrLogin}
+                      disabled={pddLoginLoading}
+                      style={{ minWidth: 132 }}
+                    >
+                      {pddLoginLoading ? '二维码生成中...' : pddQrUrl ? '刷新二维码' : '开始扫码登录'}
+                    </button>
+                    {pddLoginPolling && (
+                      <button className="btn btn-default" onClick={handleCancelPddQrLogin}>
+                        取消
+                      </button>
+                    )}
+                    {pddLoginPolling && (
+                      <span style={{ fontSize: 13, color: 'var(--text-3)' }}>
+                        每 3 秒自动检查一次登录状态
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 

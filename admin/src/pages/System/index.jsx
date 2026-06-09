@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Tabs, 
   Card, 
@@ -97,6 +97,38 @@ export default function System() {
   const [logFilters, setLogFilters] = useState({ user: '', type: '', dateRange: [] });
   const [notificationSettings, setNotificationSettings] = useState(mockNotifications);
 
+  // API 数据状态
+  const [roles, setRoles] = useState(mockRoles);
+  const [users, setUsers] = useState(mockUsers);
+  const [logs, setLogs] = useState(mockLogs);
+  const [loading, setLoading] = useState(false);
+
+  // 从 API 加载数据
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [rolesRes, usersRes, logsRes] = await Promise.all([
+          fetch('/api/system/roles').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/system/users?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/system/logs?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+
+        if (!cancelled) {
+          if (rolesRes?.data?.items) setRoles(rolesRes.data.items);
+          if (usersRes?.data?.items) setUsers(usersRes.data.items);
+          if (logsRes?.data?.items) setLogs(logsRes.data.items);
+        }
+      } catch {
+        // 保持 mock 数据
+      }
+      if (!cancelled) setLoading(false);
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
+
   // 店铺设置表单提交
   const handleShopSubmit = (values) => {
     console.log('店铺设置:', values);
@@ -107,6 +139,7 @@ export default function System() {
   const roleColumns = [
     { title: '角色名称', dataIndex: 'name', key: 'name' },
     { title: '描述', dataIndex: 'description', key: 'description' },
+    { title: '用户数', dataIndex: 'userCount', key: 'userCount' },
     { title: '用户数量', dataIndex: 'userCount', key: 'userCount' },
     {
       title: '操作',
@@ -415,7 +448,7 @@ export default function System() {
               >
                 <Table
                   columns={roleColumns}
-                  dataSource={mockRoles}
+                  dataSource={roles}
                   rowKey="id"
                   pagination={false}
                 />
@@ -438,7 +471,7 @@ export default function System() {
               >
                 <Table
                   columns={userColumns}
-                  dataSource={mockUsers}
+                  dataSource={users}
                   rowKey="id"
                   pagination={{ pageSize: 10 }}
                 />
@@ -502,7 +535,7 @@ export default function System() {
 
                 <Table
                   columns={logColumns}
-                  dataSource={mockLogs}
+                  dataSource={logs}
                   rowKey="id"
                   pagination={{
                     total: 100,

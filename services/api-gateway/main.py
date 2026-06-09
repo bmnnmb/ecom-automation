@@ -30,6 +30,7 @@ load_dotenv()
 
 # 导入路由
 from routes import shops, products, orders, messages, aftersales, competitors, reports, dashboard, settings, inventory, tickets, customers
+from routes import finance, supply_chain, system
 from routes.auth import oauth
 
 # 导入统一错误处理和中间件
@@ -93,6 +94,9 @@ app.include_router(aftersales.router, prefix="/api/aftersales", tags=["售后服
 app.include_router(competitors.router, prefix="/api/competitors", tags=["竞品分析"])
 app.include_router(reports.router, prefix="/api/reports", tags=["报表统计"])
 app.include_router(settings.router, prefix="/api/settings", tags=["系统设置"])
+app.include_router(finance.router, prefix="/api/finance", tags=["财务中心"])
+app.include_router(supply_chain.router, prefix="/api/supply-chain", tags=["供应链管理"])
+app.include_router(system.router, prefix="/api/system", tags=["系统管理"])
 
 # 代理路由 → 转发到后端微服务
 app.include_router(products.router, prefix="/api/products", tags=["商品管理 (→product-service)"])

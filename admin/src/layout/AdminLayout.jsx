@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Input, Badge, theme, Tag } from 'antd';
+import { Layout, Menu, Breadcrumb, Avatar, Dropdown, Input, Badge, theme, Tag, Modal, message } from 'antd';
 import {
   DashboardOutlined,
   ShoppingOutlined,
@@ -132,14 +132,40 @@ export default function AdminLayout() {
   const location = useLocation();
   const { token: { colorBgContainer } } = theme.useToken();
 
+  // 获取当前用户信息
+  const userInfo = (() => {
+    try {
+      const saved = localStorage.getItem('userInfo');
+      return saved ? JSON.parse(saved) : { name: '管理员', username: 'admin', role: 'admin' };
+    } catch {
+      return { name: '管理员', username: 'admin', role: 'admin' };
+    }
+  })();
+
   const handleMenuClick = ({ key }) => {
     navigate(key);
   };
 
   const handleUserMenuClick = ({ key }) => {
     if (key === 'logout') {
-      // 处理退出登录
-      console.log('退出登录');
+      Modal.confirm({
+        title: '确认退出',
+        content: '确定要退出登录吗？',
+        okText: '确定',
+        cancelText: '取消',
+        onOk: () => {
+          // 清除所有登录状态
+          localStorage.removeItem('token');
+          localStorage.removeItem('userInfo');
+          localStorage.removeItem('douyin_token');
+          navigate('/login');
+          message.success('已退出登录');
+        },
+      });
+    } else if (key === 'profile') {
+      navigate('/system');
+    } else if (key === 'settings') {
+      navigate('/settings');
     }
   };
 
@@ -230,10 +256,13 @@ export default function AdminLayout() {
               }}
               placement="bottomRight"
             >
-              <Avatar 
-                icon={<UserOutlined />} 
-                style={{ cursor: 'pointer', backgroundColor: '#165DFF' }} 
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <Avatar
+                  icon={<UserOutlined />}
+                  style={{ backgroundColor: '#165DFF' }}
+                />
+                <span style={{ fontSize: 14, color: '#1D2129' }}>{userInfo.name}</span>
+              </div>
             </Dropdown>
           </div>
         </Header>

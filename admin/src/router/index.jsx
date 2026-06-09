@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AdminLayout from '../layout/AdminLayout';
+import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
 import Orders from '../pages/Orders';
 import CustomerService from '../pages/CustomerService';
@@ -14,10 +15,27 @@ import Customers from '../pages/Customers';
 import Finance from '../pages/Finance';
 import Settings from '../pages/Settings';
 
+// 路由守卫：检查登录状态
+function AuthGuard({ children }) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
 const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <Login />,
+  },
+  {
     path: '/',
-    element: <AdminLayout />,
+    element: (
+      <AuthGuard>
+        <AdminLayout />
+      </AuthGuard>
+    ),
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'products', element: <Products /> },

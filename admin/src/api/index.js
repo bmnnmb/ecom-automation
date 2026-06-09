@@ -390,15 +390,63 @@ export async function deleteCustomer(dbId) {
   }
 }
 
-export async function fetchCompetitors() {
-  if (!apiAvailable) {
-    return { items: generateCompetitors(20), source: 'mock' };
-  }
+export async function fetchCompetitors(params = {}) {
   try {
-    const data = await apiRequest('/api/competitors/list');
-    return { ...data, source: 'api' };
+    const query = new URLSearchParams(params).toString();
+    const res = await fetch(`/api/competitors/?${query}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`Competitors API error: ${res.status}`);
+    const json = await res.json();
+    const data = json.data || json;
+    return { items: data.items || data, total: data.total || (data.items || data).length, source: 'api' };
   } catch {
-    return { items: generateCompetitors(20), source: 'mock' };
+    return { items: generateCompetitors(20), total: 20, source: 'mock' };
+  }
+}
+
+export async function createCompetitorMonitor(data) {
+  try {
+    const res = await fetch('/api/competitors/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`API Error: ${res.status}`);
+    const json = await res.json();
+    return json.data || json;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+export async function adjustCompetitorPrice(id, ourPrice, reason) {
+  try {
+    const res = await fetch(`/api/competitors/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ourPrice, reason }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`API Error: ${res.status}`);
+    const json = await res.json();
+    return json.data || json;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+export async function deleteCompetitorMonitor(id) {
+  try {
+    const res = await fetch(`/api/competitors/${id}`, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`API Error: ${res.status}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
   }
 }
 

@@ -6,7 +6,7 @@ OMS 服务提供 /api/dashboard/stats 和 /api/dashboard/trend 端点，
 """
 from utils.proxy import create_proxy_router, resolve_service_url
 
-OMS_SERVICE_URL = resolve_service_url("OMS_SERVICE_URL", "http://oms-service:8005/api/dashboard")
+OMS_SERVICE_URL = resolve_service_url("OMS_DASHBOARD_URL", "http://localhost:8005/api/dashboard")
 
 router = create_proxy_router(
     target_base=OMS_SERVICE_URL,

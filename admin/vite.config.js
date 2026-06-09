@@ -12,6 +12,11 @@ export default defineConfig({
         target: 'http://localhost:8006',
         changeOrigin: true,
       },
+      // 拼多多客服扫码登录 → port 8003
+      '/api/v1/system': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
       // 商品管理服务路由 → port 8006
       '/api/products': {
         target: 'http://localhost:8006',

@@ -3,9 +3,52 @@
  * 参考拼多多/淘宝/抖音商家后台风格
  * 主色调：#165DFF + #F2F3F5
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { generateConversations, PLATFORMS } from '../../utils/mock';
 import './CustomerService.css';
+
+// API 调用
+async function fetchConversationsFromApi() {
+  try {
+    const res = await fetch('/api/messages/conversations?page_size=50', { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const data = json.data || json;
+    const items = data.items || data || [];
+    // 适配前端格式
+    return items.map(c => ({
+      id: c.id,
+      customer: c.customerName || c.customer || '未知客户',
+      platform: c.platform,
+      status: c.status === 'active' ? 'waiting' : c.status === 'pending' ? 'processing' : c.status,
+      unread: c.unreadCount || 0,
+      lastMessage: c.lastMessage || '',
+      updatedAt: c.lastMessageTime || c.createdAt,
+      messages: (c.messages || []).map(m => ({
+        role: m.senderType === 'customer' ? 'customer' : 'agent',
+        content: m.content,
+        time: m.createdAt,
+      })),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+async function sendMessageToApi(conversationId, content) {
+  try {
+    const res = await fetch(`/api/messages/conversations/${conversationId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, message_type: 'text' }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 // 状态配置
 const STATUS_MAP = {
@@ -91,8 +134,10 @@ const mockBuyerInfo = {
 };
 
 export default function CustomerService() {
-  const [conversations] = useState(() => generateConversations(15));
-  const [activeId, setActiveId] = useState(conversations[0]?.id);
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dataSource, setDataSource] = useState('mock');
+  const [activeId, setActiveId] = useState(null);
   const [inputMsg, setInputMsg] = useState('');
   const [messages, setMessages] = useState({});
   const [filter, setFilter] = useState('all');
@@ -101,6 +146,30 @@ export default function CustomerService() {
   const [activeTemplate, setActiveTemplate] = useState(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const messagesEndRef = useRef(null);
+
+  // 加载会话数据
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const apiData = await fetchConversationsFromApi();
+      if (!cancelled) {
+        if (apiData && apiData.length > 0) {
+          setConversations(apiData);
+          setDataSource('api');
+          if (!activeId) setActiveId(apiData[0]?.id);
+        } else {
+          const mockData = generateConversations(15);
+          setConversations(mockData);
+          setDataSource('mock');
+          if (!activeId) setActiveId(mockData[0]?.id);
+        }
+        setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const activeConv = conversations.find(c => c.id === activeId);
   const activeMessages = messages[activeId] || activeConv?.messages || [];
@@ -120,14 +189,20 @@ export default function CustomerService() {
   });
 
   // 发送消息
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputMsg.trim() || !activeId) return;
     const newMsg = { role: 'agent', content: inputMsg.trim(), time: new Date().toISOString() };
     setMessages(prev => ({
       ...prev,
       [activeId]: [...(prev[activeId] || activeConv?.messages || []), newMsg]
     }));
+    const msgContent = inputMsg.trim();
     setInputMsg('');
+
+    // 尝试通过 API 发送
+    if (dataSource === 'api') {
+      await sendMessageToApi(activeId, msgContent);
+    }
 
     if (aiAssist) {
       setTimeout(() => {

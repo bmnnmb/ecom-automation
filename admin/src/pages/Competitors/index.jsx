@@ -5,6 +5,7 @@
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { generateCompetitors, PLATFORMS } from '../../utils/mock';
+import { fetchCompetitors, createCompetitorMonitor, adjustCompetitorPrice } from '../../api';
 import './Competitors.css';
 
 const PRICE_RULES = [
@@ -75,7 +76,9 @@ const BarDistribution = ({ values, width = 200, height = 60, color = '#165DFF' }
 };
 
 export default function Competitors() {
-  const [competitors, setCompetitors] = useState(() => generateCompetitors(20));
+  const [competitors, setCompetitors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dataSource, setDataSource] = useState('mock');
   const [platform, setPlatform] = useState('all');
   const [keyword, setKeyword] = useState('');
   const [sortBy, setSortBy] = useState('priceDiff');
@@ -92,12 +95,47 @@ export default function Competitors() {
   const [rules, setRules] = useState(PRICE_RULES);
   const [analysisMode, setAnalysisMode] = useState('overview'); // overview | pricing | alerts | trends
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [priceHistories] = useState(() => {
-    const map = {};
-    competitors.forEach(c => { map[c.id] = generatePriceHistory(c.theirPrice); });
-    return map;
-  });
+  const [priceHistories, setPriceHistories] = useState({});
   const [trendMetric, setTrendMetric] = useState('price'); // price | sales | rating
+
+  // 从 API 加载竞品数据
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await fetchCompetitors();
+        if (!cancelled && res.items?.length > 0) {
+          setCompetitors(res.items);
+          setDataSource(res.source || 'api');
+          // 为每个竞品生成价格历史
+          const map = {};
+          res.items.forEach(c => { map[c.id] = generatePriceHistory(c.theirPrice); });
+          setPriceHistories(map);
+        } else if (!cancelled) {
+          // 降级到 mock
+          const mockData = generateCompetitors(20);
+          setCompetitors(mockData);
+          setDataSource('mock');
+          const map = {};
+          mockData.forEach(c => { map[c.id] = generatePriceHistory(c.theirPrice); });
+          setPriceHistories(map);
+        }
+      } catch {
+        if (!cancelled) {
+          const mockData = generateCompetitors(20);
+          setCompetitors(mockData);
+          setDataSource('mock');
+          const map = {};
+          mockData.forEach(c => { map[c.id] = generatePriceHistory(c.theirPrice); });
+          setPriceHistories(map);
+        }
+      }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = useMemo(() => {
     let list = competitors;
@@ -145,10 +183,18 @@ export default function Competitors() {
     }, ...prev].slice(0, 50));
   };
 
-  const handleApplySuggestion = (item, customPrice) => {
+  const handleApplySuggestion = async (item, customPrice) => {
     const newPrice = customPrice || item.theirPrice * 0.95;
     const oldPrice = item.ourPrice;
-    setCompetitors(prev => prev.map(c => c.id === item.id ? { ...c, ourPrice: newPrice, priceDiff: ((newPrice - c.theirPrice) / c.theirPrice * 100).toFixed(1) } : c));
+    // 尝试调用 API
+    const result = await adjustCompetitorPrice(item.id, newPrice, customPrice ? '手动调价' : '应用建议价');
+    if (result && result.ourPrice) {
+      // API 成功，更新本地状态
+      setCompetitors(prev => prev.map(c => c.id === item.id ? { ...c, ourPrice: result.ourPrice, priceDiff: result.priceDiff } : c));
+    } else {
+      // API 失败，本地更新
+      setCompetitors(prev => prev.map(c => c.id === item.id ? { ...c, ourPrice: newPrice, priceDiff: ((newPrice - c.theirPrice) / c.theirPrice * 100).toFixed(1) } : c));
+    }
     recordPriceChange(item, oldPrice, newPrice, customPrice ? '手动调价' : '应用建议价');
     showToast(`${item.name} 价格已从 ¥${oldPrice.toFixed(2)} 调整为 ¥${newPrice.toFixed(2)}`);
   };
@@ -218,18 +264,37 @@ export default function Competitors() {
     showToast('竞品数据已导出');
   };
 
-  const handleAddMonitor = () => {
+  const handleAddMonitor = async () => {
     if (!newMonitor.name || !newMonitor.theirPrice || !newMonitor.ourPrice) { showToast('请填写必要信息'); return; }
-    const item = {
-      id: `comp_${Date.now()}`,
-      name: newMonitor.name, platform: newMonitor.platform,
+    const theirPrice = parseFloat(newMonitor.theirPrice);
+    const ourPrice = parseFloat(newMonitor.ourPrice);
+
+    // 尝试调用 API
+    const result = await createCompetitorMonitor({
+      name: newMonitor.name,
+      platform: newMonitor.platform,
       competitor: newMonitor.competitor || '未知店铺',
-      theirPrice: parseFloat(newMonitor.theirPrice), ourPrice: parseFloat(newMonitor.ourPrice),
-      priceDiff: (((parseFloat(newMonitor.ourPrice) - parseFloat(newMonitor.theirPrice)) / parseFloat(newMonitor.theirPrice)) * 100).toFixed(1),
-      theirSales: 0, ourSales: 0,
-      theirRating: '-', updatedAt: new Date().toISOString(),
-    };
+      theirPrice,
+      ourPrice,
+    });
+
+    let item;
+    if (result && result.id) {
+      item = result;
+    } else {
+      item = {
+        id: `comp_${Date.now()}`,
+        name: newMonitor.name, platform: newMonitor.platform,
+        competitor: newMonitor.competitor || '未知店铺',
+        theirPrice, ourPrice,
+        priceDiff: ((ourPrice - theirPrice) / theirPrice * 100).toFixed(1),
+        theirSales: 0, ourSales: 0,
+        theirRating: '-', updatedAt: new Date().toISOString(),
+      };
+    }
+
     setCompetitors(prev => [item, ...prev]);
+    setPriceHistories(prev => ({ ...prev, [item.id]: generatePriceHistory(theirPrice) }));
     setShowAddMonitor(false);
     setNewMonitor({ name: '', platform: 'douyin', theirPrice: '', ourPrice: '', competitor: '' });
     showToast('竞品监控添加成功');
@@ -302,6 +367,10 @@ export default function Competitors() {
         <div>
           <h2 className="page-title">竞品分析</h2>
           <p className="page-desc">价格监控、调价策略、竞品对标分析、趋势洞察</p>
+          <div style={{ marginTop: 4 }}>
+            {dataSource === 'api' && <span style={{ fontSize: 11, color: 'var(--success)', background: '#E8FFEA', padding: '2px 8px', borderRadius: 4 }}>✓ 实时数据</span>}
+            {dataSource === 'mock' && <span style={{ fontSize: 11, color: '#FF7D00', background: '#FFF7E6', padding: '2px 8px', borderRadius: 4 }}>⚠ 演示数据</span>}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {['overview', 'pricing', 'alerts', 'trends'].map(mode => {

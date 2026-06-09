@@ -224,14 +224,71 @@ export default function Finance() {
   const [form] = Form.useForm();
 
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => {
-      setTransactions(generateTransactions());
-      setWithdrawals(generateWithdrawals());
-      setReconciliations(generateReconciliations());
-      setTrendData(generateTrendData());
-      setLoading(false);
-    }, 500);
+    let cancelled = false;
+    async function loadData() {
+      setLoading(true);
+      try {
+        // 并行请求所有财务数据
+        const [txnRes, wdRes, recRes, trendRes] = await Promise.all([
+          fetch('/api/finance/transactions?page_size=100').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/finance/withdrawals?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/finance/reconciliations?page_size=20').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/finance/trend?days=30').then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+
+        if (!cancelled) {
+          if (txnRes?.data?.items) {
+            setTransactions(txnRes.data.items.map(t => ({
+              ...t,
+              type: t.type === '收入' ? 'income' : t.type === '退款' ? 'expense' : 'income',
+              date: t.createdAt,
+              source: t.platform,
+              description: `${t.type} - ${t.channel}`,
+            })));
+          } else {
+            setTransactions(generateTransactions());
+          }
+
+          if (wdRes?.data?.items) {
+            setWithdrawals(wdRes.data.items.map(w => ({
+              ...w,
+              date: w.createdAt,
+              method: w.bank,
+              accountName: w.account,
+            })));
+          } else {
+            setWithdrawals(generateWithdrawals());
+          }
+
+          if (recRes?.data?.items) {
+            setReconciliations(recRes.data.items);
+          } else {
+            setReconciliations(generateReconciliations());
+          }
+
+          if (trendRes?.data?.items) {
+            const trend = [];
+            trendRes.data.items.forEach(d => {
+              trend.push({ date: d.date, value: d.revenue, type: '收入' });
+              trend.push({ date: d.date, value: d.cost, type: '支出' });
+            });
+            setTrendData(trend);
+          } else {
+            setTrendData(generateTrendData());
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setTransactions(generateTransactions());
+          setWithdrawals(generateWithdrawals());
+          setReconciliations(generateReconciliations());
+          setTrendData(generateTrendData());
+        }
+      }
+      if (!cancelled) setLoading(false);
+    }
+    loadData();
+    return () => { cancelled = true; };
   }, []);
 
   // 计算统计数据

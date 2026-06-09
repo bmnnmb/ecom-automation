@@ -271,14 +271,35 @@ export default function SupplyChain() {
   const [purchaseForm] = Form.useForm();
 
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => {
-      setSupplierData(generateSupplierData());
-      setPurchaseData(generatePurchaseData());
-      setInventoryData(generateInventoryData());
-      setStockRecords(generateStockRecords());
-      setLoading(false);
-    }, 500);
+    let cancelled = false;
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [supRes, poRes, invRes, srRes] = await Promise.all([
+          fetch('/api/supply-chain/suppliers?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/supply-chain/purchase-orders?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/supply-chain/inventory?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/supply-chain/stock-records?page_size=50').then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+
+        if (!cancelled) {
+          setSupplierData(supRes?.data?.items || generateSupplierData());
+          setPurchaseData(poRes?.data?.items || generatePurchaseData());
+          setInventoryData(invRes?.data?.items || generateInventoryData());
+          setStockRecords(srRes?.data?.items || generateStockRecords());
+        }
+      } catch {
+        if (!cancelled) {
+          setSupplierData(generateSupplierData());
+          setPurchaseData(generatePurchaseData());
+          setInventoryData(generateInventoryData());
+          setStockRecords(generateStockRecords());
+        }
+      }
+      if (!cancelled) setLoading(false);
+    }
+    loadData();
+    return () => { cancelled = true; };
   }, []);
 
   // 统计数据

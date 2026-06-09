@@ -44,7 +44,7 @@ def create_proxy_router(
         if request.url.query:
             target += f"?{request.url.query}"
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
                 body = await request.body()
                 resp = await client.request(
