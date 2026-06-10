@@ -303,6 +303,46 @@ docker compose logs pdd-cs-adapter | grep -i "browser\|playwright\|chromium"
 - 确认 `shm_size` 配置（docker-compose.yml 中应设置 `shm_size: '2gb'`）
 - 调整 `PLAYWRIGHT_TIMEOUT` 环境变量
 
+**Q: 调了 `/api/v1/system/pdd-login/start`，但拿不到二维码截图**
+
+```bash
+# 检查数据目录是否存在
+docker compose exec pdd-cs-adapter ls -la /app/data
+
+# 检查截图文件是否已生成
+docker compose exec pdd-cs-adapter ls -la /app/data/pdd_login.png
+
+# 直接请求截图接口
+curl -I http://localhost:8003/api/v1/system/pdd-login/screenshot
+```
+
+- 确认 `PDD_DATA_DIR` 与容器卷挂载一致
+- 确认容器内 Playwright 已成功打开登录页
+- 若返回 404，优先查看 `docker compose logs pdd-cs-adapter`
+
+**Q: 一直显示“等待扫码确认”，但明明已经打开了工作台**
+
+- 先访问 `http://localhost:8003/api/v1/system/pdd-login/status` 确认返回值
+- 确认扫码后页面已进入工作台，而不是仍停留在登录页或二次确认页
+- 如页面已跳转但状态仍为 `false`，删除旧会话后重新发起扫码：
+
+```bash
+docker compose exec pdd-cs-adapter rm -f /app/data/pdd_storage_state.json /app/data/pdd_login.png
+curl -X POST http://localhost:8003/api/v1/system/pdd-login/start
+```
+
+**Q: 容器重启后拼多多登录态丢失**
+
+- 确认 `docker-compose.yml` 中存在 `pdd_data:/app/data`
+- 确认 `PDD_DATA_DIR=/app/data`
+- 检查 `pdd_storage_state.json` 是否成功落盘：
+
+```bash
+docker compose exec pdd-cs-adapter ls -la /app/data/pdd_storage_state.json
+```
+
+- 如果文件存在但仍掉登录，通常是平台会话自然失效，需要重新扫码
+
 ### 闲鱼适配器
 
 **Q: 闲鱼登录态失效**
@@ -469,6 +509,12 @@ docker compose exec <service> playwright install chromium
 # 有头模式调试（本地开发时）
 HEADLESS=false uvicorn main:app --reload
 ```
+
+**Q: 浏览器会话文件存在，但服务仍像首次启动一样要求重新登录**
+
+- 检查会话文件是否写入到实际使用的 `PDD_DATA_DIR`
+- 检查容器是否被替换且未复用 `pdd_data` 卷
+- 确认当前访问的是同一套拼多多工作台域名配置（`PDD_WORKBENCH_URL`）
 
 **Q: Docker 内浏览器崩溃 (OOM)**
 

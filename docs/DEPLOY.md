@@ -49,7 +49,8 @@ vim .env
 **按需变量（对应平台功能才需要）:**
 - `DOUYIN_APP_KEY` / `DOUYIN_APP_SECRET` — 抖店
 - `KUAISHOU_APP_KEY` / `KUAISHOU_APP_SECRET` — 快手
-- `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` / `PDD_ACCESS_TOKEN` — 拼多多
+- `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` / `PDD_ACCESS_TOKEN` — 拼多多开放平台 API
+- `PDD_DATA_DIR` — 拼多多扫码登录会话目录（默认由 Docker Compose 挂载到 `/app/data`）
 - `XIANYU_COOKIE` — 闲鱼
 - `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — AI 功能
 
@@ -103,6 +104,18 @@ docker compose logs -f --tail=50 oms-service
 | Metabase | http://localhost:3001 | 数据可视化 | /api/health |
 | PostgreSQL | localhost:5432 | 数据库 | pg_isready |
 | Redis | localhost:6379 | 缓存 | redis-cli ping |
+
+### 拼多多扫码登录部署说明
+
+- `pdd-cs-adapter` 已在 `docker-compose.yml` 中挂载 `pdd_data:/app/data`
+- `PDD_DATA_DIR=/app/data` 用于保存二维码截图和浏览器会话
+- 仅做本地客服工作台自动化时，不需要配置 `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET`
+- 首次部署后可通过以下接口验证扫码链路：
+
+```bash
+curl -X POST http://localhost:8003/api/v1/system/pdd-login/start
+curl http://localhost:8003/api/v1/system/pdd-login/status
+```
 
 ## 常用命令
 
@@ -209,9 +222,10 @@ curl http://localhost:8005/health
 | `DOUYIN_APP_SECRET` | 按需 | - | 抖店 App Secret |
 | `KUAISHOU_APP_KEY` | 按需 | - | 快手 App Key |
 | `KUAISHOU_APP_SECRET` | 按需 | - | 快手 App Secret |
-| `PDD_CLIENT_ID` | 按需 | - | 拼多多 Client ID |
-| `PDD_CLIENT_SECRET` | 按需 | - | 拼多多 Client Secret |
-| `PDD_ACCESS_TOKEN` | 按需 | - | 拼多多 Access Token |
+| `PDD_CLIENT_ID` | 按需 | - | 拼多多 Client ID，仅开放平台 API 场景需要 |
+| `PDD_CLIENT_SECRET` | 按需 | - | 拼多多 Client Secret，仅开放平台 API 场景需要 |
+| `PDD_ACCESS_TOKEN` | 按需 | - | 拼多多 Access Token，仅开放平台 API 场景需要 |
+| `PDD_DATA_DIR` | 否 | `/app/data` | 拼多多扫码登录二维码截图与会话持久化目录 |
 | `XIANYU_COOKIE` | 按需 | - | 闲鱼登录 Cookie |
 | `OPENAI_API_KEY` | 按需 | - | OpenAI API Key |
 | `ANTHROPIC_API_KEY` | 按需 | - | Anthropic API Key |

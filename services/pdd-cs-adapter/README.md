@@ -1,16 +1,14 @@
 # 拼多多客服自动化服务
 
-基于FastAPI和Playwright的拼多多客服自动化服务，提供自动回复、风险分级、知识库管理等功能。
+基于 FastAPI 和 Playwright 的拼多多客服自动化服务，支持本地客服工作台扫码登录、浏览器会话持久化，以及后续客服自动化能力扩展。
 
-## 功能特性
+## 当前可用能力
 
-- 🔄 自动读取客服消息
-- 💬 FAQ自动回复（低风险消息）
-- ⚠️ 风险分级和人工转接
-- 📦 订单上下文辅助回复
-- 🌐 浏览器自动化处理工作台
-- 📊 系统监控和指标
-- 📚 知识库管理
+- 本地发起拼多多商家工作台扫码登录
+- 保存二维码截图，供管理后台直接展示
+- 轮询登录状态并持久化浏览器会话
+- 重启容器后复用已保存的会话文件
+- 提供系统状态、配置和浏览器自检接口
 
 ## 项目结构
 
@@ -51,21 +49,21 @@ cp .env.example .env
 ### 3. 启动服务
 
 ```bash
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8003
 ```
 
 ### 4. 使用Docker部署
 
 ```bash
 docker build -t pdd-cs-adapter .
-docker run -p 8000:8000 --env-file .env pdd-cs-adapter
+docker run -p 8003:8003 --env-file .env -v $(pwd)/data:/app/data pdd-cs-adapter
 ```
 
 ## API文档
 
 启动服务后访问：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: http://localhost:8003/docs
+- ReDoc: http://localhost:8003/redoc
 
 ## 主要API端点
 
@@ -82,15 +80,35 @@ docker run -p 8000:8000 --env-file .env pdd-cs-adapter
 ### 系统管理
 - `GET /api/v1/system/status` - 获取系统状态
 - `GET /api/v1/system/config` - 获取配置
+- `POST /api/v1/system/pdd-login/start` - 启动拼多多扫码登录
+- `GET /api/v1/system/pdd-login/screenshot` - 获取当前二维码截图
+- `GET /api/v1/system/pdd-login/status` - 查询扫码登录状态
+- `POST /api/v1/system/pdd-login/cancel` - 取消扫码登录
 - `POST /api/v1/system/test/browser` - 测试浏览器
+
+## 扫码登录流程
+
+```text
+1. POST /api/v1/system/pdd-login/start
+2. 打开 /api/v1/system/pdd-login/screenshot 获取二维码截图
+3. 用户扫码并在拼多多侧确认
+4. GET /api/v1/system/pdd-login/status 轮询登录状态
+5. 登录成功后自动保存 /app/data/pdd_storage_state.json
+```
 
 ## 配置说明
 
 主要配置项：
-- `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` - 拼多多API凭证
-- `PDD_USERNAME` / `PDD_PASSWORD` - 工作台登录凭证
+- `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` - 拼多多开放平台 API 凭证，仅调用开放平台接口时需要
+- `PDD_ACCESS_TOKEN` - 拼多多开放平台 Access Token，仅调用开放平台接口时需要
+- `PDD_DATA_DIR` - 扫码登录二维码截图与浏览器会话持久化目录
 - `AUTO_REPLY_ENABLED` - 是否启用自动回复
 - `BROWSER_HEADLESS` - 是否使用无头浏览器
+
+说明：
+- 本地扫码登录不依赖 `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET`
+- 如未配置 `PDD_DATA_DIR`，默认使用 `/app/data`
+- `PDD_USERNAME` / `PDD_PASSWORD` 仍可用于代码内其他登录流程，但不是当前扫码登录能力的前置条件
 
 ## 开发说明
 
@@ -108,10 +126,10 @@ docker run -p 8000:8000 --env-file .env pdd-cs-adapter
 
 ## 注意事项
 
-1. 拼多多API需要申请权限
-2. 浏览器自动化需要稳定网络环境
-3. 建议定期更新知识库内容
-4. 监控系统日志确保服务稳定
+1. 本地扫码登录需要稳定网络环境和可用的 Playwright 浏览器
+2. 建议持久化 `PDD_DATA_DIR`，否则容器重启后需要重新扫码
+3. 只有调用开放平台 API 时才需要申请拼多多开放平台权限
+4. 建议定期检查日志和 `pdd_storage_state.json` 是否正常落盘
 
 ## License
 

@@ -55,9 +55,15 @@ vim .env
 | `DB_PASSWORD` | PostgreSQL 密码 | ✅ |
 | `DOUYIN_APP_KEY` / `DOUYIN_APP_SECRET` | 抖店开放平台凭证 | 抖店开发时 |
 | `KUAISHOU_APP_KEY` / `KUAISHOU_APP_SECRET` | 快手开放平台凭证 | 快手开发时 |
-| `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` | 拼多多开放平台凭证 | 拼多多开发时 |
+| `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` | 拼多多开放平台凭证 | 调试拼多多开放平台 API 时 |
+| `PDD_DATA_DIR` | 拼多多扫码登录会话目录 | 调试本地客服工作台自动化时 |
 | `XIANYU_COOKIE` | 闲鱼登录 Cookie | 闲鱼开发时 |
 | `OPENAI_API_KEY` | OpenAI API Key | RAG/Hermes |
+
+说明：
+- 拼多多本地扫码登录不依赖 `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET`
+- 二维码截图和浏览器会话默认写入 `PDD_DATA_DIR`
+- 管理后台可通过 `系统设置 -> 平台配置 -> 拼多多扫码登录` 直接发起联调
 
 ### 3. 启动基础设施
 
@@ -427,6 +433,22 @@ HEADLESS=false uvicorn main:app --reload
 # Docker 中需要挂载 /dev/shm
 # docker-compose.yml 中已配置 shm_size
 ```
+
+### Q: 如何联调拼多多扫码登录？
+
+```bash
+# 启动拼多多客服适配器
+cd services/pdd-cs-adapter
+uvicorn main:app --reload --port 8003
+
+# 触发二维码生成
+curl -X POST http://localhost:8003/api/v1/system/pdd-login/start
+
+# 查询登录状态
+curl http://localhost:8003/api/v1/system/pdd-login/status
+```
+
+如需从前端联调，进入管理后台 `系统设置 -> 平台配置 -> 拼多多扫码登录` 即可。
 
 ### Q: 如何添加新平台适配器？
 

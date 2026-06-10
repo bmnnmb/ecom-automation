@@ -1833,7 +1833,7 @@ GET /api/dashboard/alerts
 
 基础路径: `http://localhost:8003`
 
-拼多多客服自动化服务，基于 Playwright 实现浏览器自动化。
+拼多多客服自动化服务，基于 Playwright 实现浏览器自动化，现已支持本地客服工作台扫码登录。该登录流程用于浏览器会话建立，不依赖 `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET`。
 
 ### 健康检查
 
@@ -1842,7 +1842,78 @@ GET /         # 服务状态
 GET /health   # 健康检查
 ```
 
-> ⚠️ 客服自动化接口待实现
+### 系统管理 `/api/v1/system`
+
+#### 获取系统状态
+
+```
+GET /api/v1/system/status
+```
+
+#### 获取当前配置
+
+```
+GET /api/v1/system/config
+```
+
+#### 测试浏览器自动化
+
+```
+POST /api/v1/system/test/browser
+```
+
+#### 启动拼多多扫码登录
+
+```
+POST /api/v1/system/pdd-login/start
+```
+
+**响应 200**
+```json
+{
+  "status": "success",
+  "message": "请扫描二维码完成登录",
+  "screenshot_url": "/api/v1/system/pdd-login/screenshot",
+  "screenshot_path": "/app/data/pdd_login.png"
+}
+```
+
+#### 获取当前二维码截图
+
+```
+GET /api/v1/system/pdd-login/screenshot
+```
+
+**响应 200** — `image/png`  
+**响应 404** — `{"detail": "登录二维码截图不存在"}`
+
+#### 查询扫码登录状态
+
+```
+GET /api/v1/system/pdd-login/status
+```
+
+**响应 200**
+```json
+{
+  "logged_in": false,
+  "message": "等待扫码确认"
+}
+```
+
+#### 取消扫码登录
+
+```
+POST /api/v1/system/pdd-login/cancel
+```
+
+**响应 200**
+```json
+{
+  "status": "success",
+  "message": "扫码登录已取消"
+}
+```
 
 ---
 

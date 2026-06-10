@@ -33,7 +33,7 @@
 | api-gateway | 8000 | FastAPI | 统一REST API网关 |
 | douyin-adapter | 8001 | FastAPI + 官方SDK | 抖店平台适配器 |
 | kuaishou-adapter | 8002 | FastAPI + SDK | 快手平台适配器 |
-| pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化 |
+| pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化（支持本地扫码登录） |
 | xianyu-adapter | 8004 | FastAPI + Playwright | 闲鱼自动化 |
 | oms-service | 8005 | FastAPI + SQLAlchemy | 订单中台 (订单/库存/工单/看板) |
 | rag-service | 8009 | FastAPI + pgvector | RAG 知识库检索 |
@@ -55,11 +55,18 @@ pip install -r requirements.txt
 docker-compose up -d
 ```
 
+### 拼多多本地扫码登录
+
+- 管理后台入口：`系统设置 -> 平台配置 -> 拼多多扫码登录`
+- 后端接口：`/api/v1/system/pdd-login/*`
+- 用途：仅用于本地客服工作台自动化，不生成开放平台授权
+- 会话与二维码截图默认保存在 `PDD_DATA_DIR`（Docker Compose 中挂载到 `/app/data`）
+
 ## 开发阶段
 
 ### 第1阶段 (2-3周)
 - [ ] 抖店 Adapter 基础版
-- [ ] 拼多多客服自动化
+- [ ] 拼多多客服自动化（已支持本地扫码登录）
 - [ ] 闲鱼自动回复系统
 - [ ] PostgreSQL + Redis + n8n
 - [ ] Hermes 4个核心 Skills
