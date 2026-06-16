@@ -38,6 +38,12 @@ env/
 .env.local
 .env.*.local
 
+# Playwright/浏览器自动化数据目录
+services/pdd-cs-adapter/data/
+**/storage_state.json
+**/pdd_storage_state.json
+**/douyin_storage_state.json
+
 # Logs
 *.log
 logs/

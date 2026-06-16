@@ -46,7 +46,15 @@ class Settings(BaseSettings):
     )
     PDD_USERNAME: Optional[str] = Field(default=None, env="PDD_USERNAME")
     PDD_PASSWORD: Optional[str] = Field(default=None, env="PDD_PASSWORD")
-    PDD_DATA_DIR: str = Field(default="/app/data", env="PDD_DATA_DIR")
+    PDD_DATA_DIR: str = Field(default="./data", env="PDD_DATA_DIR")
+
+    # 抖音配置
+    DOUYIN_MERCHANT_URL: str = Field(
+        default="https://fxg.jinritemai.com",
+        env="DOUYIN_MERCHANT_URL"
+    )
+    DOUYIN_USERNAME: Optional[str] = Field(default=None, env="DOUYIN_USERNAME")
+    DOUYIN_PASSWORD: Optional[str] = Field(default=None, env="DOUYIN_PASSWORD")
     
     # 数据库配置
     DATABASE_URL: str = Field(
@@ -73,6 +81,8 @@ class Settings(BaseSettings):
         "PDD_ACCESS_TOKEN",
         "PDD_USERNAME",
         "PDD_PASSWORD",
+        "DOUYIN_USERNAME",
+        "DOUYIN_PASSWORD",
         mode="before",
     )
     @classmethod
@@ -82,7 +92,7 @@ class Settings(BaseSettings):
         return value
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env", ".env.local"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

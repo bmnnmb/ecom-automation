@@ -111,6 +111,62 @@ async def cancel_douyin_login():
         raise HTTPException(status_code=500, detail=f"取消登录失败: {str(e)}")
 
 
+@router.post("/douyin-login/password")
+async def douyin_password_login():
+    """抖音账号密码登录"""
+    import traceback
+    try:
+        logger.info("开始抖音账号密码登录...")
+        bot = get_bot()
+        success = await bot.login_with_password()
+
+        if success:
+            return {
+                "success": True,
+                "message": "账号密码登录成功",
+                "data": {
+                    "status": "logged_in"
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "账号密码登录失败，请检查账号密码或重试",
+                "data": {
+                    "status": "failed"
+                }
+            }
+    except Exception as e:
+        error_type = type(e).__name__
+        user_message = "账号密码登录失败"
+
+        if "TimeoutError" in error_type or "timeout" in str(e).lower():
+            user_message = "登录超时，请检查网络后重试"
+        elif "Connection" in error_type or "connection" in str(e).lower():
+            user_message = "无法连接到抖音服务，请检查网络"
+        elif "Browser" in error_type or "playwright" in str(e).lower():
+            user_message = "浏览器启动失败，请联系管理员"
+
+        logger.error(f"抖音账号密码登录失败: {error_type}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=user_message)
+
+
+@router.get("/douyin-auth/status")
+async def get_douyin_auth_status():
+    """获取抖音持久授权状态"""
+    bot = get_bot()
+    is_authorized = bot.storage_state_path.exists()
+    return {
+        "success": True,
+        "data": {
+            "is_authorized": is_authorized,
+            "status": "authorized" if is_authorized else "unauthorized",
+            "message": "已授权" if is_authorized else "未授权"
+        }
+    }
+
+
 @router.get("/douyin-login/shop-info")
 async def get_douyin_shop_info():
     """获取抖音店铺信息"""

@@ -106,26 +106,64 @@ async def restart_service():
     return {"message": "重启指令已发送"}
 
 
+@router.get("/pdd-auth/status")
+async def get_pdd_auth_status():
+    """获取拼多多持久授权状态"""
+    from playwright_bot import playwright_bot
+
+    is_authorized = playwright_bot.storage_state_path.exists()
+    return {
+        "success": True,
+        "data": {
+            "is_authorized": is_authorized,
+            "status": "authorized" if is_authorized else "unauthorized",
+            "message": "已授权" if is_authorized else "未授权"
+        }
+    }
+
+
 @router.post("/pdd-login/start")
 async def start_pdd_login():
     """启动拼多多扫码登录"""
     from playwright_bot import playwright_bot
+    import logging
+    import traceback
+
+    logger = logging.getLogger(__name__)
 
     try:
+        logger.info("开始启动拼多多扫码登录...")
         screenshot_path = await playwright_bot.start_qr_login()
+        logger.info(f"二维码生成成功: {screenshot_path}")
         return {
-            "status": "success",
-            "message": "请扫描二维码完成登录",
-            "screenshot_url": "/api/v1/system/pdd-login/screenshot",
-            "screenshot_path": screenshot_path,
+            "success": True,
+            "message": "请使用拼多多商家版APP扫描二维码完成登录",
+            "data": {
+                "screenshot_url": "/api/v1/system/pdd-login/screenshot",
+                "screenshot_path": screenshot_path,
+                "status": "waiting_scan"
+            }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"启动扫码登录失败: {str(e)}")
+        # 映射为用户友好的错误消息
+        error_type = type(e).__name__
+        user_message = "启动扫码登录失败，请稍后重试"
+
+        if "TimeoutError" in error_type or "timeout" in str(e).lower():
+            user_message = "网络连接超时，请检查网络后重试"
+        elif "Connection" in error_type or "connection" in str(e).lower():
+            user_message = "无法连接到拼多多服务，请检查网络"
+        elif "Browser" in error_type or "playwright" in str(e).lower():
+            user_message = "浏览器启动失败，请联系管理员"
+
+        logger.error(f"启动扫码登录失败: {error_type}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=user_message)
 
 
 @router.get("/pdd-login/screenshot")
 async def get_pdd_login_screenshot():
-    """获取当前二维码截图"""
+    """获取拼多多二维码截图"""
     from playwright_bot import playwright_bot
 
     path = playwright_bot.login_screenshot_path
@@ -140,13 +178,26 @@ async def get_pdd_login_status():
     from playwright_bot import playwright_bot
 
     try:
-        logged_in = await playwright_bot.check_login_status()
+        is_logged_in = await playwright_bot.check_login_status()
+        # 登录成功后不立即关闭，由前端调用cancel接口或后续请求时关闭
+        # 避免前端轮询时浏览器已关闭导致的竞态条件
         return {
-            "logged_in": logged_in,
-            "message": "已登录" if logged_in else "等待扫码确认",
+            "success": True,
+            "data": {
+                "is_logged_in": is_logged_in,
+                "status": "logged_in" if is_logged_in else "waiting_scan",
+                "message": "已登录" if is_logged_in else "等待扫码确认"
+            }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"检查登录状态失败: {str(e)}")
+        return {
+            "success": False,
+            "data": {
+                "is_logged_in": False,
+                "status": "failed",
+                "message": f"检查登录状态失败: {str(e)}"
+            }
+        }
 
 
 @router.post("/pdd-login/cancel")
@@ -154,8 +205,83 @@ async def cancel_pdd_login():
     """取消拼多多扫码登录"""
     from playwright_bot import playwright_bot
 
-    await playwright_bot.close()
-    return {"status": "success", "message": "扫码登录已取消"}
+    try:
+        await playwright_bot.close()
+        return {
+            "success": True,
+            "message": "扫码登录已取消"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取消登录失败: {str(e)}")
+
+
+@router.post("/pdd-login/password")
+async def pdd_password_login():
+    """拼多多账号密码登录"""
+    from playwright_bot import playwright_bot
+    import logging
+    import traceback
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info("开始拼多多账号密码登录...")
+        success = await playwright_bot.login()
+
+        if success:
+            return {
+                "success": True,
+                "message": "账号密码登录成功",
+                "data": {
+                    "status": "logged_in"
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "账号密码登录失败，请检查账号密码或重试",
+                "data": {
+                    "status": "failed"
+                }
+            }
+    except Exception as e:
+        error_type = type(e).__name__
+        user_message = "账号密码登录失败"
+
+        if "TimeoutError" in error_type or "timeout" in str(e).lower():
+            user_message = "登录超时，请检查网络后重试"
+        elif "Connection" in error_type or "connection" in str(e).lower():
+            user_message = "无法连接到拼多多服务，请检查网络"
+        elif "Browser" in error_type or "playwright" in str(e).lower():
+            user_message = "浏览器启动失败，请联系管理员"
+
+        logger.error(f"账号密码登录失败: {error_type}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=user_message)
+
+
+@router.post("/pdd-logout")
+async def pdd_logout():
+    """拼多多登出"""
+    from playwright_bot import playwright_bot
+    from pathlib import Path
+
+    try:
+        # 关闭浏览器
+        await playwright_bot.close()
+
+        # 删除会话文件
+        if playwright_bot.storage_state_path.exists():
+            playwright_bot.storage_state_path.unlink()
+            import logging
+            logging.getLogger(__name__).info(f"已删除会话文件: {playwright_bot.storage_state_path}")
+
+        return {
+            "success": True,
+            "message": "拼多多授权已解绑"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"登出失败: {str(e)}")
 
 
 @router.get("/health")

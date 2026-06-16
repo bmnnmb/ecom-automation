@@ -1,6 +1,6 @@
 """
 抖音商家后台自动化
-使用Playwright处理抖音商家后台扫码登录
+使用Playwright处理抖音商家后台扫码登录和账号密码登录
 """
 import asyncio
 import logging
@@ -8,6 +8,14 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+
+# 导入配置
+try:
+    from .config import settings
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +26,16 @@ class DouyinBot:
     # 抖音商家后台地址
     DOUYIN_MERCHANT_URL = "https://fxg.jinritemai.com"
 
-    def __init__(self, data_dir: str = "./data"):
+    def __init__(self, data_dir: Optional[str] = None):
         self.playwright = None
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
         self.is_logged_in = False
-        self.data_dir = Path(data_dir)
+        self.data_dir = Path(data_dir) if data_dir else Path(settings.PDD_DATA_DIR)
         self.storage_state_path = self.data_dir / "douyin_storage_state.json"
         self.login_screenshot_path = self.data_dir / "douyin_login.png"
-        self.headless = os.getenv("BROWSER_HEADLESS", "true").lower() == "true"
+        self.headless = settings.BROWSER_HEADLESS
         self._playwright_context_manager = None
 
     def _page_is_closed(self) -> bool:
@@ -138,7 +146,7 @@ class DouyinBot:
         self.playwright = None
         self._playwright_context_manager = None
         self.is_logged_in = False
-        self.headless = os.getenv("BROWSER_HEADLESS", "true").lower() == "true"
+        self.headless = settings.BROWSER_HEADLESS
 
         if close_errors:
             logger.error(f"关闭浏览器时出错: {close_errors[0]}")
@@ -337,3 +345,163 @@ class DouyinBot:
             "shop_name": "待实现",
             "shop_id": "待实现"
         }
+
+    async def login_with_password(self) -> bool:
+        """使用账号密码登录抖音商家后台"""
+        if not self.page:
+            await self.start()
+
+        try:
+            logger.info("正在访问抖音商家后台...")
+            await self.page.goto(self.DOUYIN_MERCHANT_URL, wait_until='networkidle', timeout=30000)
+            await asyncio.sleep(2)
+
+            # 检查是否已经登录
+            if await self.check_login_status():
+                logger.info("已经登录")
+                self.is_logged_in = True
+                return True
+
+            # 需要登录
+            if not settings.DOUYIN_USERNAME or not settings.DOUYIN_PASSWORD:
+                logger.error("未配置抖音登录凭据")
+                return False
+
+            # 尝试切换到账号密码登录
+            try:
+                account_login_selectors = [
+                    'text=账号登录',
+                    'text=密码登录',
+                    '[data-testid="password-login"]',
+                ]
+                for selector in account_login_selectors:
+                    locator = self.page.locator(selector)
+                    if await locator.count() > 0:
+                        await locator.first.click()
+                        await asyncio.sleep(1)
+                        logger.info("已切换到账号密码登录")
+                        break
+            except Exception as e:
+                logger.warning(f"未找到账号登录切换按钮: {e}")
+
+            # 输入用户名
+            try:
+                username_selectors = [
+                    'input[name="username"]',
+                    'input[name="mobile"]',
+                    'input[name="account"]',
+                    'input[placeholder*="手机号"]',
+                    'input[placeholder*="账号"]',
+                    'input[type="text"]',
+                ]
+
+                username_input = None
+                for selector in username_selectors:
+                    locator = self.page.locator(selector)
+                    count = await locator.count()
+                    if count > 0:
+                        # 找到可见的输入框
+                        for i in range(count):
+                            try:
+                                if await locator.nth(i).is_visible(timeout=1000):
+                                    username_input = locator.nth(i)
+                                    break
+                            except:
+                                continue
+                    if username_input:
+                        break
+
+                if not username_input:
+                    logger.error("未找到用户名输入框")
+                    await self.page.screenshot(path=str(self.data_dir / "douyin_login_error.png"))
+                    return False
+
+                await username_input.fill(settings.DOUYIN_USERNAME)
+                logger.info("已填入用户名")
+
+                # 输入密码
+                password_selectors = [
+                    'input[name="password"]',
+                    'input[type="password"]',
+                    'input[placeholder*="密码"]',
+                ]
+
+                password_input = None
+                for selector in password_selectors:
+                    locator = self.page.locator(selector)
+                    count = await locator.count()
+                    if count > 0:
+                        for i in range(count):
+                            try:
+                                if await locator.nth(i).is_visible(timeout=1000):
+                                    password_input = locator.nth(i)
+                                    break
+                            except:
+                                continue
+                    if password_input:
+                        break
+
+                if not password_input:
+                    logger.error("未找到密码输入框")
+                    await self.page.screenshot(path=str(self.data_dir / "douyin_login_error.png"))
+                    return False
+
+                await password_input.fill(settings.DOUYIN_PASSWORD)
+                logger.info("已填入密码")
+
+                # 查找并点击登录按钮
+                login_button_selectors = [
+                    'button[type="submit"]',
+                    'button:has-text("登录")',
+                    'button:has-text("立即登录")',
+                    'text=登录',
+                ]
+
+                login_button = None
+                for selector in login_button_selectors:
+                    locator = self.page.locator(selector)
+                    count = await locator.count()
+                    if count > 0:
+                        for i in range(count):
+                            try:
+                                if await locator.nth(i).is_visible(timeout=1000):
+                                    login_button = locator.nth(i)
+                                    break
+                            except:
+                                continue
+                    if login_button:
+                        break
+
+                if not login_button:
+                    logger.error("未找到登录按钮")
+                    await self.page.screenshot(path=str(self.data_dir / "douyin_login_error.png"))
+                    return False
+
+                await login_button.click()
+                logger.info("已点击登录按钮")
+
+                # 等待登录完成（最多等待30秒）
+                for _ in range(15):
+                    await asyncio.sleep(2)
+                    if await self.check_login_status():
+                        logger.info("抖音账号密码登录成功")
+                        self.is_logged_in = True
+                        await self.save_storage_state()
+                        return True
+
+                logger.error("登录超时，可能需要验证码或登录失败")
+                await self.page.screenshot(path=str(self.data_dir / "douyin_login_timeout.png"))
+                return False
+
+            except Exception as e:
+                logger.error(f"填写登录表单失败: {e}")
+                await self.page.screenshot(path=str(self.data_dir / "douyin_login_form_error.png"))
+                return False
+
+        except Exception as e:
+            logger.error(f"登录失败: {e}")
+            return False
+
+
+# 创建全局实例
+douyin_bot = DouyinBot()
