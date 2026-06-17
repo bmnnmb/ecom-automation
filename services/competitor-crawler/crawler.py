@@ -23,6 +23,7 @@ from retry import retry
 
 from storage import Platform, ProductSnapshot
 from anti_crawler import get_anti_crawler, AntiCrawlerManager
+from scrapling_client import crawl_product_with_scrapling, scrapling_enabled
 
 
 @dataclass
@@ -650,6 +651,15 @@ class CrawlerFactory:
 # 便捷函数
 async def crawl_product(platform: Platform, url: str) -> CrawlResult:
     """爬取单个商品"""
+    if scrapling_enabled():
+        result = await crawl_product_with_scrapling(platform, url)
+        if result.success:
+            return result
+
+        logger.warning(
+            f"Scrapling crawl failed for {platform.value}, falling back to Playwright: {result.error}"
+        )
+
     async with CrawlerFactory.create_crawler(platform) as crawler:
         return await crawler.crawl_product(url)
 

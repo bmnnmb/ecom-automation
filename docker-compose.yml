@@ -336,6 +336,8 @@ services:
       MONGODB_URL: mongodb://mongodb:27017
       MONGODB_DATABASE: competitor_crawler
       DATA_DIR: /app/data
+      CRAWLER_ENGINE: ${CRAWLER_ENGINE:-scrapling}
+      SCRAPLING_FETCHER: ${SCRAPLING_FETCHER:-dynamic}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - competitor_data:/app/data

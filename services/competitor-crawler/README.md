@@ -13,7 +13,7 @@
 
 ### 技术栈
 - **Web框架**：FastAPI
-- **爬虫引擎**：Playwright + httpx
+- **爬虫引擎**：Scrapling + Playwright + httpx
 - **数据分析**：jieba分词、imagehash图片处理
 - **任务调度**：APScheduler
 - **数据存储**：MongoDB (Motor异步驱动)
@@ -28,10 +28,10 @@ cd ~/ecom-automation/services/competitor-crawler
 pip install -r requirements.txt
 ```
 
-### 2. 安装Playwright浏览器
+### 2. 安装浏览器依赖
 
 ```bash
-playwright install chromium
+scrapling install
 ```
 
 ### 3. 启动MongoDB
@@ -200,6 +200,8 @@ DEBUG=false
 # 爬虫配置
 CRAWLER_TIMEOUT=30
 CRAWLER_MAX_RETRIES=3
+CRAWLER_ENGINE=scrapling      # scrapling / playwright
+SCRAPLING_FETCHER=dynamic     # dynamic / static / stealthy
 ```
 
 ### 配置文件

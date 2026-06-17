@@ -3,7 +3,8 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright
 
 WORKDIR /app
 
@@ -15,13 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libu2f-udev libvulkan1 libxss1 libappindicator3-1 curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install playwright && \
-    playwright install chromium && \
-    playwright install-deps chromium
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    scrapling install
 
 COPY . .
 
