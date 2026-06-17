@@ -8,6 +8,7 @@ try:
     from .chat_routes import router as chat_router
     from .knowledge_routes import router as knowledge_router
     from .system_routes import router as system_router
+    from .douyin_routes import router as douyin_router
     from .product_routes import router as product_router
     from .order_routes import router as order_router
 except ImportError:
@@ -18,6 +19,7 @@ except ImportError:
     from chat_routes import router as chat_router
     from knowledge_routes import router as knowledge_router
     from system_routes import router as system_router
+    from douyin_routes import router as douyin_router
     from product_routes import router as product_router
     from order_routes import router as order_router
 
@@ -27,5 +29,6 @@ router = APIRouter()
 router.include_router(chat_router, prefix="/chat", tags=["chat"])
 router.include_router(knowledge_router, prefix="/knowledge", tags=["knowledge"])
 router.include_router(system_router, prefix="/system", tags=["system"])
+router.include_router(douyin_router, prefix="/system", tags=["抖音授权"])
 router.include_router(product_router, prefix="/products", tags=["商品管理"])
 router.include_router(order_router, prefix="/orders", tags=["订单管理"])

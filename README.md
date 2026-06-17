@@ -33,7 +33,7 @@
 | api-gateway | 8000 | FastAPI | 统一REST API网关 |
 | douyin-adapter | 8001 | FastAPI + 官方SDK | 抖店平台适配器 |
 | kuaishou-adapter | 8002 | FastAPI + SDK | 快手平台适配器 |
-| pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化（支持本地扫码登录） |
+| pdd-cs-adapter | 8003 | Python + Playwright | 拼多多客服自动化（支持账号密码授权） |
 | xianyu-adapter | 8004 | FastAPI + Playwright | 闲鱼自动化 |
 | oms-service | 8005 | FastAPI + SQLAlchemy | 订单中台 (订单/库存/工单/看板) |
 | rag-service | 8009 | FastAPI + pgvector | RAG 知识库检索 |
@@ -55,25 +55,26 @@ pip install -r requirements.txt
 docker-compose up -d
 ```
 
-### 拼多多本地扫码登录
+### 拼多多账号密码授权
 
-- 管理后台入口：`系统设置 -> 平台配置 -> 拼多多扫码登录`
+- 管理后台入口：`系统设置 -> 平台配置 -> 拼多多账号密码授权`
 - 后端接口：`/api/v1/system/pdd-login/*`
 - 用途：仅用于本地客服工作台自动化，不生成开放平台授权
-- 会话与二维码截图默认保存在 `PDD_DATA_DIR`（Docker Compose 中挂载到 `/app/data`）
+- 会话默认保存在 `PDD_DATA_DIR`（Docker Compose 中挂载到 `/app/data`）
+- Docker 部署会把容器内浏览器通过 noVNC 暴露到本机 `http://localhost:6080/vnc.html`
 
 ## 开发阶段
 
 ### 第1阶段 (2-3周)
 - [ ] 抖店 Adapter 基础版
-- [ ] 拼多多客服自动化（已支持本地扫码登录）
+- [x] 拼多多客服自动化（已支持账号密码授权）
 - [ ] 闲鱼自动回复系统
 - [ ] PostgreSQL + Redis + n8n
 - [ ] Hermes 4个核心 Skills
 
 ### 第2阶段 (3-6周)
 - [ ] OMS 基础版
-- [ ] 竞品爬虫标准化
+- [x] 竞品爬虫标准化（已完成，运行在端口 8008）
 - [ ] 商品上架文案生成
 - [ ] 合规审核
 - [ ] 快手 Adapter
@@ -123,20 +124,19 @@ docker-compose up -d
 - **竞品爬虫** `/crawl`, `/tasks`, `/analysis` — 数据采集与分析
 - **任务调度** `/tasks`, `/skills`, `/goals` — Hermes 任务编排
 
-> 📄 完整 API 文档：[docs/API.md](docs/API.md) | OpenAPI Spec：[docs/openapi.yaml](docs/openapi.yaml)
+> 📄 完整 API 文档：[.docs/API.md](.docs/API.md) | OpenAPI Spec：[.docs/openapi.yaml](.docs/openapi.yaml)
 
 ## 文档
 
 | 文档 | 说明 |
 |------|------|
-| [docs/API.md](docs/API.md) | 完整 API 接口文档 |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | 部署指南 |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发指南（环境搭建、编码规范、测试流程） |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 故障排除指南（常见问题与解决方案） |
-| [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.0 规范文件 |
-| [CHANGELOG.md](CHANGELOG.md) | 项目变更日志 |
-| [PROGRESS.md](PROGRESS.md) | 项目进度跟踪 |
-| [BUG-TRACKING.md](BUG-TRACKING.md) | Bug 跟踪记录 |
+| [.docs/API.md](.docs/API.md) | 完整 API 接口文档 |
+| [.docs/DEPLOY.md](.docs/DEPLOY.md) | 部署指南 |
+| [.docs/DEVELOPMENT.md](.docs/DEVELOPMENT.md) | 开发指南（环境搭建、编码规范、测试流程） |
+| [.docs/TROUBLESHOOTING.md](.docs/TROUBLESHOOTING.md) | 故障排除指南（常见问题与解决方案） |
+| [.docs/CHANGELOG.md](.docs/CHANGELOG.md) | 项目变更日志 |
+| [.docs/services/competitor-crawler-quickstart.md](.docs/services/competitor-crawler-quickstart.md) | 竞品爬虫快速启动 |
+| [services/*/README.md](services/) | 各服务模块的详细说明 |
 
 ## 技术栈
 

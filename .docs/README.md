@@ -27,6 +27,9 @@
 
 ## 服务文档 (services/)
 
+### 竞品爬虫 (competitor-crawler/)
+- [competitor-crawler-quickstart.md](./services/competitor-crawler-quickstart.md) - 快速启动指南
+
 ### 拼多多客服适配器 (pdd-cs-adapter/)
 - [DEPLOYMENT.md](./services/pdd-cs-adapter/DEPLOYMENT.md) - 部署指南
 - [FIX_NOTIMPLEMENTEDERROR.md](./services/pdd-cs-adapter/FIX_NOTIMPLEMENTEDERROR.md) - 错误修复记录

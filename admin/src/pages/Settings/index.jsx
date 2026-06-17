@@ -11,9 +11,9 @@ import {
   saveSettings,
 } from '../../api/index.js';
 import {
-  startPddQrLogin,
-  fetchPddQrLoginStatus,
-  cancelPddQrLogin,
+  startPddPasswordLogin,
+  fetchPddLoginStatus,
+  cancelPddLogin,
 } from '../../api/pddLogin.js';
 import { DEFAULT_SETTINGS, PLATFORMS } from '../../utils/mock';
 import '../Competitors/Competitors.css';
@@ -30,7 +30,8 @@ export default function Settings() {
   const [pddLoginLoading, setPddLoginLoading] = useState(false);
   const [pddLoginPolling, setPddLoginPolling] = useState(false);
   const [pddLoginStatus, setPddLoginStatus] = useState('idle');
-  const [pddQrUrl, setPddQrUrl] = useState('');
+  const [pddAuthInfoUrl, setPddAuthInfoUrl] = useState('/api/v1/system/pdd-auth/page');
+  const [pddBrowserControlUrl, setPddBrowserControlUrl] = useState('');
   const [pddLoginMessage, setPddLoginMessage] = useState('用于本地客服工作台自动化，不是开放平台授权');
 
   // 初始化: 从后端加载配置
@@ -100,35 +101,37 @@ export default function Settings() {
     }
   }, [settings, saving]);
 
-  const handleStartPddQrLogin = useCallback(async () => {
+  const handleStartPddPasswordLogin = useCallback(async () => {
     setPddLoginLoading(true);
     setPddLoginStatus('idle');
     try {
-      const result = await startPddQrLogin();
-      setPddQrUrl(`${result.screenshot_url}?t=${Date.now()}`);
-      setPddLoginMessage(result.message || '请扫描二维码完成登录');
+      const result = await startPddPasswordLogin();
+      setPddAuthInfoUrl(result.data?.auth_info_url || '/api/v1/system/pdd-auth/page');
+      setPddBrowserControlUrl(result.data?.browser_control_url || '');
+      setPddLoginMessage(result.message || '已打开浏览器并填入账号密码，请完成必要验证');
       setPddLoginStatus('waiting');
       setPddLoginPolling(true);
     } catch (e) {
-      console.error('启动拼多多扫码登录失败:', e);
+      console.error('启动拼多多账号密码授权登录失败:', e);
       setPddLoginStatus('error');
-      setPddLoginMessage(e.message || '启动拼多多扫码登录失败');
+      setPddLoginMessage(e.message || '启动拼多多账号密码授权登录失败');
       setPddLoginPolling(false);
     } finally {
       setPddLoginLoading(false);
     }
   }, []);
 
-  const handleCancelPddQrLogin = useCallback(async () => {
+  const handleCancelPddLogin = useCallback(async () => {
     try {
-      await cancelPddQrLogin();
+      await cancelPddLogin();
     } catch (e) {
-      console.error('取消拼多多扫码登录失败:', e);
+      console.error('取消拼多多登录失败:', e);
     } finally {
       setPddLoginPolling(false);
       setPddLoginStatus('idle');
       setPddLoginMessage('用于本地客服工作台自动化，不是开放平台授权');
-      setPddQrUrl('');
+      setPddAuthInfoUrl('/api/v1/system/pdd-auth/page');
+      setPddBrowserControlUrl('');
     }
   }, []);
 
@@ -137,17 +140,24 @@ export default function Settings() {
 
     const timer = setInterval(async () => {
       try {
-        const status = await fetchPddQrLoginStatus();
-        if (status.logged_in) {
+        const status = await fetchPddLoginStatus();
+        const data = status.data || {};
+        if (data.is_logged_in) {
           setPddLoginStatus('success');
-          setPddLoginMessage(status.message || '拼多多商家后台已登录');
+          setPddLoginMessage(data.message || '拼多多商家后台已授权');
+          setPddLoginPolling(false);
+          return;
+        }
+
+        if (data.status === 'closed' || data.status === 'failed') {
+          setPddLoginStatus('error');
+          setPddLoginMessage(data.message || '未检测到有效授权');
           setPddLoginPolling(false);
           return;
         }
 
         setPddLoginStatus('waiting');
-        setPddLoginMessage(status.message || '等待扫码确认');
-        setPddQrUrl(`/api/v1/system/pdd-login/screenshot?t=${Date.now()}`);
+        setPddLoginMessage(data.message || '等待账号密码登录完成');
       } catch (e) {
         console.error('检查拼多多登录状态失败:', e);
         setPddLoginStatus('error');
@@ -390,9 +400,9 @@ export default function Settings() {
                         多
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 16 }}>拼多多扫码登录</div>
+                        <div style={{ fontWeight: 600, fontSize: 16 }}>拼多多账号密码授权</div>
                         <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 4 }}>
-                          仅用于本地客服工作台自动化，不生成开放平台授权
+                          后端从 .env 自动填入账号密码；滑块、短信等验证由用户手动完成
                         </div>
                       </div>
                     </div>
@@ -403,7 +413,7 @@ export default function Settings() {
                       background: pddLoginStatus === 'success' ? '#E8FFEA' : pddLoginStatus === 'error' ? '#FFF1F0' : '#F2F3F5',
                       color: pddLoginStatus === 'success' ? '#00B42A' : pddLoginStatus === 'error' ? '#F53F3F' : '#86909C',
                     }}>
-                      {pddLoginStatus === 'success' ? '已登录' : pddLoginStatus === 'error' ? '登录异常' : pddLoginPolling ? '等待扫码' : '未启动'}
+                      {pddLoginStatus === 'success' ? '已授权' : pddLoginStatus === 'error' ? '登录异常' : pddLoginPolling ? '等待登录' : '未启动'}
                     </span>
                   </div>
 
@@ -419,34 +429,30 @@ export default function Settings() {
                     {pddLoginMessage}
                   </div>
 
-                  {pddQrUrl && (
-                    <div style={{ marginBottom: 16 }}>
-                      <img
-                        src={pddQrUrl}
-                        alt="拼多多扫码登录二维码"
-                        style={{
-                          width: 320,
-                          maxWidth: '100%',
-                          display: 'block',
-                          borderRadius: 8,
-                          border: '1px solid var(--border)',
-                          background: '#fff',
-                        }}
-                      />
+                  {pddAuthInfoUrl && (
+                    <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {pddBrowserControlUrl && (
+                        <a href={pddBrowserControlUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>
+                          打开远程浏览器
+                        </a>
+                      )}
+                      <a href={pddAuthInfoUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>
+                        查看拼多多授权信息
+                      </a>
                     </div>
                   )}
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <button
                       className="btn btn-primary"
-                      onClick={handleStartPddQrLogin}
+                      onClick={handleStartPddPasswordLogin}
                       disabled={pddLoginLoading}
                       style={{ minWidth: 132 }}
                     >
-                      {pddLoginLoading ? '二维码生成中...' : pddQrUrl ? '刷新二维码' : '开始扫码登录'}
+                      {pddLoginLoading ? '正在启动...' : pddLoginPolling ? '重新发起授权' : '账号密码授权'}
                     </button>
                     {pddLoginPolling && (
-                      <button className="btn btn-default" onClick={handleCancelPddQrLogin}>
+                      <button className="btn btn-default" onClick={handleCancelPddLogin}>
                         取消
                       </button>
                     )}

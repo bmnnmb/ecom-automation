@@ -1,14 +1,15 @@
 # 拼多多客服自动化服务
 
-基于 FastAPI 和 Playwright 的拼多多客服自动化服务，支持本地客服工作台扫码登录、浏览器会话持久化，以及后续客服自动化能力扩展。
+基于 FastAPI 和 Playwright 的拼多多客服自动化服务，支持本地客服工作台账号密码授权登录、浏览器会话持久化，以及后续客服自动化能力扩展。
 
 ## 当前可用能力
 
-- 本地发起拼多多商家工作台扫码登录
-- 保存二维码截图，供管理后台直接展示
-- 轮询登录状态并持久化浏览器会话
+- 本地打开可见浏览器发起拼多多商家工作台账号密码授权
+- 从 `.env` 读取 `PDD_USERNAME` / `PDD_PASSWORD` 自动填入登录表单
+- 用户手动完成滑块、短信或扫码确认等安全验证
+- 轮询登录状态，成功后持久化浏览器会话并关闭浏览器
 - 重启容器后复用已保存的会话文件
-- 提供系统状态、配置和浏览器自检接口
+- 提供系统状态、配置、授权信息和浏览器自检接口
 
 ## 项目结构
 
@@ -80,20 +81,25 @@ docker run -p 8003:8003 --env-file .env -v $(pwd)/data:/app/data pdd-cs-adapter
 ### 系统管理
 - `GET /api/v1/system/status` - 获取系统状态
 - `GET /api/v1/system/config` - 获取配置
-- `POST /api/v1/system/pdd-login/start` - 启动拼多多扫码登录
-- `GET /api/v1/system/pdd-login/screenshot` - 获取当前二维码截图
-- `GET /api/v1/system/pdd-login/status` - 查询扫码登录状态
-- `POST /api/v1/system/pdd-login/cancel` - 取消扫码登录
+- `POST /api/v1/system/pdd-login/start` - 启动拼多多账号密码授权登录
+- `GET /api/v1/system/pdd-login/status` - 查询账号密码授权登录状态
+- `POST /api/v1/system/pdd-login/cancel` - 取消账号密码授权登录
+- `POST /api/v1/system/pdd-login/password` - 兼容入口，同样启动账号密码授权登录
+- `GET /api/v1/system/pdd-auth/status` - 查询拼多多持久授权状态
+- `GET /api/v1/system/pdd-auth/info` - 查看授权信息 JSON，不返回 cookie 值
+- `GET /api/v1/system/pdd-auth/page` - 查看授权信息 HTML 页面
 - `POST /api/v1/system/test/browser` - 测试浏览器
 
-## 扫码登录流程
+## 账号密码授权流程
 
 ```text
 1. POST /api/v1/system/pdd-login/start
-2. 打开 /api/v1/system/pdd-login/screenshot 获取二维码截图
-3. 用户扫码并在拼多多侧确认
-4. GET /api/v1/system/pdd-login/status 轮询登录状态
-5. 登录成功后自动保存 /app/data/pdd_storage_state.json
+2. 后端打开可见浏览器，访问拼多多商家工作台
+3. 后端从 .env 自动填入 PDD_USERNAME / PDD_PASSWORD 并提交
+4. 用户在浏览器里手动完成滑块、短信或扫码确认
+5. GET /api/v1/system/pdd-login/status 轮询登录状态
+6. 授权成功后自动保存 /app/data/pdd_storage_state.json 并关闭浏览器
+7. 打开 /api/v1/system/pdd-auth/page 查看授权信息
 ```
 
 ## 配置说明
@@ -101,14 +107,16 @@ docker run -p 8003:8003 --env-file .env -v $(pwd)/data:/app/data pdd-cs-adapter
 主要配置项：
 - `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET` - 拼多多开放平台 API 凭证，仅调用开放平台接口时需要
 - `PDD_ACCESS_TOKEN` - 拼多多开放平台 Access Token，仅调用开放平台接口时需要
-- `PDD_DATA_DIR` - 扫码登录二维码截图与浏览器会话持久化目录
+- `PDD_USERNAME` / `PDD_PASSWORD` - 拼多多商家后台账号密码，用于账号密码授权登录
+- `PDD_DATA_DIR` - 浏览器会话持久化目录
 - `AUTO_REPLY_ENABLED` - 是否启用自动回复
 - `BROWSER_HEADLESS` - 是否使用无头浏览器
+- `BROWSER_CONTROL_URL` - 远程浏览器入口；Docker Compose 默认是 `http://localhost:6080/vnc.html?autoconnect=true&resize=scale`
 
 说明：
-- 本地扫码登录不依赖 `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET`
+- 账号密码授权登录不依赖 `PDD_CLIENT_ID` / `PDD_CLIENT_SECRET`
 - 如未配置 `PDD_DATA_DIR`，默认使用 `/app/data`
-- `PDD_USERNAME` / `PDD_PASSWORD` 仍可用于代码内其他登录流程，但不是当前扫码登录能力的前置条件
+- 授权流程需要可见浏览器；Docker Compose 通过 noVNC 暴露容器内浏览器，端口只绑定本机 `127.0.0.1:6080`
 
 ## 开发说明
 
@@ -126,8 +134,8 @@ docker run -p 8003:8003 --env-file .env -v $(pwd)/data:/app/data pdd-cs-adapter
 
 ## 注意事项
 
-1. 本地扫码登录需要稳定网络环境和可用的 Playwright 浏览器
-2. 建议持久化 `PDD_DATA_DIR`，否则容器重启后需要重新扫码
+1. 账号密码授权登录需要稳定网络环境和可见的 Playwright 浏览器
+2. 建议持久化 `PDD_DATA_DIR`，否则容器重启后需要重新授权
 3. 只有调用开放平台 API 时才需要申请拼多多开放平台权限
 4. 建议定期检查日志和 `pdd_storage_state.json` 是否正常落盘
 

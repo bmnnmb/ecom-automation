@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+from urllib.parse import urlsplit, urlunsplit
 from dataclasses import dataclass, asdict
 from enum import Enum
 
@@ -16,6 +17,20 @@ import aiofiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from loguru import logger
 from pydantic import BaseModel, Field
+
+
+def redact_connection_url(url: str) -> str:
+    """Hide credentials before writing database URLs to logs."""
+    try:
+        parts = urlsplit(url)
+        if not parts.username:
+            return url
+        host = parts.hostname or ""
+        if parts.port:
+            host = f"{host}:{parts.port}"
+        return urlunsplit((parts.scheme, f"***:***@{host}", parts.path, parts.query, parts.fragment))
+    except Exception:
+        return "<redacted>"
 
 
 class Platform(str, Enum):
@@ -60,6 +75,7 @@ class Storage:
     async def connect(self):
         """连接数据库"""
         try:
+            logger.info(f"Attempting to connect to MongoDB at: {redact_connection_url(self.mongodb_url)}")
             self.client = AsyncIOMotorClient(self.mongodb_url)
             self.db = self.client[self.db_name]
             
@@ -197,10 +213,17 @@ async def get_storage() -> Storage:
     """获取存储实例"""
     global _storage_instance
     if _storage_instance is None:
+        mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+        db_name = os.getenv("MONGODB_DATABASE", "competitor_crawler")
+        data_dir = os.getenv("DATA_DIR", "./data")
+
+        logger.info(f"Initializing storage with MONGODB_URL: {redact_connection_url(mongodb_url)}")
+        logger.info(f"Database name: {db_name}")
+
         _storage_instance = Storage(
-            mongodb_url=os.getenv("MONGODB_URL", "mongodb://localhost:27017"),
-            db_name=os.getenv("MONGODB_DATABASE", "competitor_crawler"),
-            data_dir=os.getenv("DATA_DIR", "./data"),
+            mongodb_url=mongodb_url,
+            db_name=db_name,
+            data_dir=data_dir,
         )
         await _storage_instance.connect()
     return _storage_instance

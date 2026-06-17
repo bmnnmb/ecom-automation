@@ -51,25 +51,24 @@ class PlaywrightBotTester:
             self.log_test("浏览器启动", False, str(e))
             return False
 
-    async def test_2_qr_login_init(self):
-        """测试2: 二维码登录页面"""
+    async def test_2_authorization_login_init(self):
+        """测试2: 账号密码授权登录页面"""
         try:
-            screenshot_path = await self.bot.start_qr_login()
-            exists = Path(screenshot_path).exists()
+            result = await self.bot.start_password_login()
+            started = bool(result.get("status"))
             self.log_test(
-                "二维码登录初始化",
-                exists,
-                f"截图路径: {screenshot_path}" if exists else "截图未生成"
+                "账号密码授权初始化",
+                started,
+                result.get("message", result.get("status", "未返回授权状态"))
             )
 
-            if exists:
-                logger.info(f"📸 请查看二维码截图: {screenshot_path}")
-                logger.info("请在30秒内扫码登录...")
-                await asyncio.sleep(30)  # 等待用户扫码
+            if started and not result.get("is_logged_in"):
+                logger.info("请在30秒内完成滑块、短信或扫码确认...")
+                await asyncio.sleep(30)  # 等待用户完成验证
 
-            return exists
+            return started
         except Exception as e:
-            self.log_test("二维码登录初始化", False, str(e))
+            self.log_test("账号密码授权初始化", False, str(e))
             return False
 
     async def test_3_login_status(self):

@@ -1,230 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Steps, Button, message, Spin, Result, Image, Typography } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import { Modal, Steps, Button, message, Spin, Result, Typography, Alert, Space } from 'antd';
 import {
-  QrcodeOutlined,
+  LoginOutlined,
   LoadingOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined,
-  SyncOutlined
+  SyncOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
 
-// 轮询配置常量
-const POLL_INTERVAL_MS = 2000;      // 轮询间隔：2秒
-const POLL_MAX_ATTEMPTS = 60;       // 最大轮询次数：60次（约2分钟）
-const QR_LOAD_DELAY_MS = 2000;      // 二维码加载后延迟轮询时间
-const SUCCESS_CLOSE_DELAY_MS = 1500; // 授权成功后关闭弹窗延迟
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 150;
+const SUCCESS_CLOSE_DELAY_MS = 1500;
 
-/**
- * 拼多多扫码授权弹窗
- *
- * 授权流程：
- * 1. 发起登录 -> 获取二维码
- * 2. 展示二维码 -> 用户扫码
- * 3. 轮询状态 -> 检测是否登录成功
- * 4. 完成授权 -> 保存会话
- */
+async function parseApiResponse(response, fallbackMessage) {
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.success === false) {
+    throw new Error(result.detail || result.message || result.data?.message || fallbackMessage);
+  }
+  return result;
+}
+
 export default function PddAuthModal({ visible, onCancel, onSuccess }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [polling, setPolling] = useState(false);
-  const [pollingTimer, setPollingTimer] = useState(null);
-  const [loginStatus, setLoginStatus] = useState('pending'); // pending | success | failed | timeout
+  const [loginStatus, setLoginStatus] = useState('pending');
+  const [errorDetail, setErrorDetail] = useState('');
+  const [authInfoUrl, setAuthInfoUrl] = useState('/api/v1/system/pdd-auth/page');
+  const [browserControlUrl, setBrowserControlUrl] = useState('');
+  const pollingTimerRef = useRef(null);
 
-  // 使用相对路径，由 Vite proxy 转发到 pdd-cs-adapter (port 8003)
-  const API_BASE = '';
-
-  // 步骤配置
   const steps = [
-    { title: '发起授权', icon: <QrcodeOutlined /> },
-    { title: '扫码登录', icon: <LoadingOutlined /> },
+    { title: '发起授权', icon: <LoginOutlined /> },
+    { title: '完成验证', icon: <LoadingOutlined /> },
     { title: '完成授权', icon: <CheckCircleOutlined /> },
   ];
 
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (pollingTimer) {
-        clearInterval(pollingTimer);
-      }
-    };
-  }, [pollingTimer]);
-
-  // 重置状态
-  const resetState = () => {
-    setCurrentStep(0);
-    setLoading(false);
-    setQrCodeUrl('');
-    setPolling(false);
-    setLoginStatus('pending');
-    if (pollingTimer) {
-      clearInterval(pollingTimer);
-      setPollingTimer(null);
+  const clearPolling = () => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
     }
+    setPolling(false);
   };
 
-  // 步骤1：发起扫码登录
-  const startQrLogin = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/v1/system/pdd-login/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+  const resetState = () => {
+    clearPolling();
+    setCurrentStep(0);
+    setLoading(false);
+    setLoginStatus('pending');
+    setErrorDetail('');
+    setAuthInfoUrl('/api/v1/system/pdd-auth/page');
+    setBrowserControlUrl('');
+  };
 
-      const result = await response.json();
+  useEffect(() => {
+    return () => clearPolling();
+  }, []);
 
-      if (result.success) {
-        // 获取二维码截图
-        const qrUrl = `${API_BASE}/api/v1/system/pdd-login/screenshot?t=${Date.now()}`;
-        setQrCodeUrl(qrUrl);
-        setCurrentStep(1);
+  const checkLoginStatus = async () => {
+    const response = await fetch('/api/v1/system/pdd-login/status');
+    const result = await parseApiResponse(response, '获取拼多多登录状态失败');
+    const data = result.data || {};
 
-        // 等待二维码加载后开始轮询
-        setTimeout(() => {
-          startPollingStatus();
-        }, QR_LOAD_DELAY_MS);
-      } else {
-        throw new Error(result.message || '发起登录失败');
-      }
-    } catch (error) {
-      message.error(`发起登录失败: ${error.message}`);
+    if (data.is_logged_in) {
+      clearPolling();
+      setLoginStatus('success');
+      setCurrentStep(2);
+      message.success(data.message || '拼多多授权成功');
+
+      setTimeout(() => {
+        onSuccess && onSuccess();
+        handleCancel(false);
+      }, SUCCESS_CLOSE_DELAY_MS);
+      return true;
+    }
+
+    if (data.status === 'closed' || data.status === 'failed') {
+      clearPolling();
       setLoginStatus('failed');
+      setErrorDetail(data.message || '未检测到有效授权，请重新发起');
+      return true;
+    }
+
+    return false;
+  };
+
+  const startPollingStatus = () => {
+    clearPolling();
+    setPolling(true);
+    let attemptCount = 0;
+
+    pollingTimerRef.current = setInterval(async () => {
+      attemptCount += 1;
+
+      try {
+        const finished = await checkLoginStatus();
+        if (!finished && attemptCount >= POLL_MAX_ATTEMPTS) {
+          clearPolling();
+          setLoginStatus('timeout');
+          setErrorDetail('授权检测超时，请确认是否已在浏览器中完成登录');
+        }
+      } catch (error) {
+        console.error('轮询状态失败:', error);
+      }
+    }, POLL_INTERVAL_MS);
+  };
+
+  const startPasswordLogin = async () => {
+    setLoading(true);
+    setErrorDetail('');
+
+    try {
+      const response = await fetch('/api/v1/system/pdd-login/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await parseApiResponse(response, '启动拼多多账号密码授权登录失败');
+
+      setAuthInfoUrl(result.data?.auth_info_url || '/api/v1/system/pdd-auth/page');
+      setBrowserControlUrl(result.data?.browser_control_url || '');
+      setCurrentStep(1);
+      setLoginStatus('waiting');
+      message.success(result.message || '已打开浏览器并填入账号密码');
+      startPollingStatus();
+    } catch (error) {
+      setLoginStatus('failed');
+      setErrorDetail(error.message);
+      message.error(`发起授权失败: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // 步骤2：轮询登录状态
-  const startPollingStatus = () => {
-    setPolling(true);
-    let attemptCount = 0;
-
-    const timer = setInterval(async () => {
-      attemptCount++;
-
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/system/pdd-login/status`);
-        const result = await response.json();
-
-        if (result.success && result.data) {
-          const { is_logged_in, status } = result.data;
-
-          if (is_logged_in) {
-            // 登录成功，先停止轮询
-            clearInterval(timer);
-            setPolling(false);
-            setLoginStatus('success');
-            setCurrentStep(2);
-
-            message.success('授权成功！');
-
-            // 主动关闭后端浏览器，避免资源泄漏
-            try {
-              await fetch(`${API_BASE}/api/v1/system/pdd-login/cancel`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-              });
-            } catch (error) {
-              console.error('关闭浏览器失败:', error);
-            }
-
-            // 延迟后关闭弹窗并回调
-            setTimeout(() => {
-              onSuccess && onSuccess();
-              handleCancel();
-            }, SUCCESS_CLOSE_DELAY_MS);
-          } else if (status === 'failed') {
-            // 登录失败
-            clearInterval(timer);
-            setPolling(false);
-            setLoginStatus('failed');
-            message.error('登录失败，请重试');
-          } else if (attemptCount >= POLL_MAX_ATTEMPTS) {
-            // 超时
-            clearInterval(timer);
-            setPolling(false);
-            setLoginStatus('timeout');
-            message.warning('登录超时，请重新发起授权');
-          }
-        }
-      } catch (error) {
-        console.error('轮询状态失败:', error);
-        // 继续轮询，不中断
-      }
-    }, POLL_INTERVAL_MS);
-
-    setPollingTimer(timer);
-  };
-
-  // 取消授权
   const cancelAuth = async () => {
     try {
-      await fetch(`${API_BASE}/api/v1/system/pdd-login/cancel`, {
+      await fetch('/api/v1/system/pdd-login/cancel', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     } catch (error) {
       console.error('取消授权失败:', error);
     }
   };
 
-  // 关闭弹窗
-  const handleCancel = () => {
-    if (polling) {
+  const handleCancel = (shouldCancelRemote = true) => {
+    if (shouldCancelRemote && (polling || currentStep === 1)) {
       cancelAuth();
     }
     resetState();
     onCancel && onCancel();
   };
 
-  // 重试
   const handleRetry = () => {
     resetState();
-    startQrLogin();
+    startPasswordLogin();
   };
 
-  // 渲染步骤内容
   const renderStepContent = () => {
-    // 步骤1：发起授权
     if (currentStep === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           {loginStatus === 'failed' ? (
             <Result
               status="error"
-              title="授权失败"
-              subTitle="发起登录失败，请检查网络连接或稍后重试"
+              title="授权启动失败"
+              subTitle={errorDetail || '无法打开拼多多登录页面'}
               extra={[
                 <Button key="retry" type="primary" onClick={handleRetry}>
                   重新授权
                 </Button>,
-                <Button key="cancel" onClick={handleCancel}>
+                <Button key="cancel" onClick={() => handleCancel(false)}>
                   取消
-                </Button>
+                </Button>,
               ]}
             />
           ) : (
             <>
-              <QrcodeOutlined style={{ fontSize: 64, color: '#165DFF', marginBottom: 24 }} />
+              <SafetyCertificateOutlined style={{ fontSize: 64, color: '#165DFF', marginBottom: 24 }} />
               <div style={{ marginBottom: 32 }}>
                 <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
-                  准备发起拼多多商家授权
+                  拼多多店铺授权
                 </div>
                 <Text type="secondary">
-                  点击下方按钮后，将打开登录浏览器并生成二维码
+                  后端会从 .env 自动填入账号密码；滑块、短信等验证由用户手动完成。
                 </Text>
               </div>
               <Button
                 type="primary"
                 size="large"
+                icon={<LoginOutlined />}
                 loading={loading}
-                onClick={startQrLogin}
-                style={{ width: 200, height: 48, fontSize: 16 }}
+                onClick={startPasswordLogin}
+                style={{ minWidth: 180, height: 48, fontSize: 16 }}
               >
-                {loading ? '正在生成二维码...' : '开始授权'}
+                {loading ? '正在启动...' : '账号密码授权'}
               </Button>
             </>
           )}
@@ -232,132 +204,97 @@ export default function PddAuthModal({ visible, onCancel, onSuccess }) {
       );
     }
 
-    // 步骤2：扫码登录
     if (currentStep === 1) {
-      if (loginStatus === 'timeout') {
+      if (loginStatus === 'timeout' || loginStatus === 'failed') {
         return (
           <Result
-            status="warning"
-            title="登录超时"
-            subTitle="您在2分钟内未完成扫码，请重新发起授权"
+            status={loginStatus === 'timeout' ? 'warning' : 'error'}
+            title={loginStatus === 'timeout' ? '授权检测超时' : '授权未完成'}
+            subTitle={errorDetail || '请重新发起授权并完成必要验证'}
             extra={[
               <Button key="retry" type="primary" onClick={handleRetry}>
                 重新授权
               </Button>,
-              <Button key="cancel" onClick={handleCancel}>
+              <Button key="cancel" onClick={() => handleCancel(false)}>
                 取消
-              </Button>
+              </Button>,
             ]}
           />
         );
       }
 
       return (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
-              请使用拼多多商家版APP扫码
-            </div>
-            <Text type="secondary">
-              打开拼多多商家版APP扫码；如出现滑块，请在弹出的浏览器窗口中拖动完成验证
-            </Text>
+        <div style={{ padding: '20px 0' }}>
+          <Alert
+            type="info"
+            showIcon
+            message={browserControlUrl ? '请打开远程浏览器完成验证' : '请在打开的拼多多商家后台页面完成验证'}
+            description="系统已自动填入 .env 中的账号密码；如果出现滑块、短信或扫码确认，请手动完成。检测到有效登录态后会保存 session 并关闭浏览器。"
+            style={{ marginBottom: 24 }}
+          />
+
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            {polling && (
+              <>
+                <Spin indicator={<LoadingOutlined style={{ fontSize: 28 }} spin />} />
+                <div style={{ marginTop: 12 }}>
+                  <Text type="secondary">正在检测账号密码授权状态...</Text>
+                </div>
+              </>
+            )}
           </div>
 
-          {qrCodeUrl ? (
-            <div style={{
-              display: 'inline-block',
-              padding: 16,
-              background: '#fff',
-              borderRadius: 8,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-            }}>
-              <Image
-                src={qrCodeUrl}
-                alt="拼多多登录二维码"
-                width={280}
-                height={280}
-                preview={false}
-                placeholder={
-                  <div style={{ width: 280, height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Spin size="large" />
-                  </div>
-                }
-              />
-            </div>
-          ) : (
-            <div style={{
-              width: 312,
-              height: 312,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: '#fafafa',
-              borderRadius: 8
-            }}>
-              <Spin size="large" tip="正在加载二维码..." />
-            </div>
-          )}
-
-          {polling && (
-            <div style={{ marginTop: 24 }}>
-              <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
-              <div style={{ marginTop: 12 }}>
-                <Text type="secondary">等待扫码确认...</Text>
-              </div>
-            </div>
-          )}
-
-          <div style={{ marginTop: 32 }}>
-            <Button onClick={handleCancel} disabled={loading}>
+          <Space style={{ display: 'flex', justifyContent: 'center' }}>
+            <Button
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={checkLoginStatus}
+              disabled={loading}
+            >
+              立即检测
+            </Button>
+            {browserControlUrl && (
+              <Button href={browserControlUrl} target="_blank">
+                打开远程浏览器
+              </Button>
+            )}
+            <Button href={authInfoUrl} target="_blank">
+              查看授权信息
+            </Button>
+            <Button onClick={() => handleCancel()} disabled={loading}>
               取消授权
             </Button>
-            <Button
-              type="link"
-              icon={<SyncOutlined />}
-              onClick={handleRetry}
-              style={{ marginLeft: 16 }}
-            >
-              刷新二维码
-            </Button>
-          </div>
+          </Space>
         </div>
       );
     }
 
-    // 步骤3：完成授权
-    if (currentStep === 2) {
-      return (
-        <Result
-          status="success"
-          title="授权成功！"
-          subTitle="拼多多商家账号已成功授权，可以开始使用自动化功能"
-          extra={[
-            <Button key="done" type="primary" onClick={handleCancel}>
-              完成
-            </Button>
-          ]}
-        />
-      );
-    }
+    return (
+      <Result
+        status="success"
+        title="授权成功"
+        subTitle="拼多多商家账号 session 已保存，可以开始使用自动化功能。"
+        extra={[
+          <Button key="done" type="primary" onClick={() => handleCancel(false)}>
+            完成
+          </Button>,
+        ]}
+      />
+    );
   };
 
   return (
     <Modal
       title="拼多多店铺授权"
       open={visible}
-      onCancel={handleCancel}
+      onCancel={() => handleCancel()}
       footer={null}
       width={600}
       centered
       maskClosable={false}
       destroyOnClose
     >
-      <Steps
-        current={currentStep}
-        items={steps}
-        style={{ marginBottom: 32 }}
-      />
-
+      <Steps current={currentStep} items={steps} style={{ marginBottom: 32 }} />
       {renderStepContent()}
     </Modal>
   );

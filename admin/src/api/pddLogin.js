@@ -1,27 +1,32 @@
 const PDD_SYSTEM_BASE = '/api/v1/system';
 
-export async function startPddQrLogin() {
+async function parsePddResponse(res, fallbackMessage) {
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || result.success === false) {
+    throw new Error(result.detail || result.message || result.data?.message || fallbackMessage);
+  }
+  return result;
+}
+
+export async function startPddPasswordLogin() {
   const res = await fetch(`${PDD_SYSTEM_BASE}/pdd-login/start`, {
     method: 'POST',
     signal: AbortSignal.timeout(15000),
   });
-  if (!res.ok) throw new Error('启动拼多多扫码登录失败');
-  return res.json();
+  return parsePddResponse(res, '启动拼多多账号密码授权登录失败');
 }
 
-export async function fetchPddQrLoginStatus() {
+export async function fetchPddLoginStatus() {
   const res = await fetch(`${PDD_SYSTEM_BASE}/pdd-login/status`, {
     signal: AbortSignal.timeout(10000),
   });
-  if (!res.ok) throw new Error('获取拼多多登录状态失败');
-  return res.json();
+  return parsePddResponse(res, '获取拼多多登录状态失败');
 }
 
-export async function cancelPddQrLogin() {
+export async function cancelPddLogin() {
   const res = await fetch(`${PDD_SYSTEM_BASE}/pdd-login/cancel`, {
     method: 'POST',
     signal: AbortSignal.timeout(10000),
   });
-  if (!res.ok) throw new Error('取消拼多多扫码登录失败');
-  return res.json();
+  return parsePddResponse(res, '取消拼多多登录失败');
 }

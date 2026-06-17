@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+.cache/
+data/
+logs/
+test_*.py
+save_session*.py
+test_local_browser.py
+pdd_login*.png
+douyin_login*.png

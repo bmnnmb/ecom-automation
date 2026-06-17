@@ -174,13 +174,18 @@ services:
     restart: unless-stopped
     ports:
       - "8003:8003"
+      - "127.0.0.1:6080:6080"
     environment:
       DATABASE_URL: postgresql://ecom:${DB_PASSWORD:-ecom2024}@postgres:5432/ecom_automation
       REDIS_URL: redis://redis:6379/3
       PDD_CLIENT_ID: ${PDD_CLIENT_ID:-}
       PDD_CLIENT_SECRET: ${PDD_CLIENT_SECRET:-}
       PDD_ACCESS_TOKEN: ${PDD_ACCESS_TOKEN:-}
+      PDD_USERNAME: ${PDD_USERNAME:-}
+      PDD_PASSWORD: ${PDD_PASSWORD:-}
       PDD_DATA_DIR: /app/data
+      BROWSER_HEADLESS: "true"
+      BROWSER_CONTROL_URL: "http://localhost:6080/vnc.html?autoconnect=true&resize=scale"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - pdd_data:/app/data

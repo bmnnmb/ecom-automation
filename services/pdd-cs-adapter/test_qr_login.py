@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -22,7 +23,7 @@ def load_module(name: str):
             sys.path.pop(0)
 
 
-class QrLoginTests(unittest.TestCase):
+class PddLoginTests(unittest.TestCase):
     def setUp(self):
         self._modules = ["config", "playwright_bot", "routes.system_routes", "routes"]
         self._env_backup = os.environ.copy()
@@ -48,7 +49,7 @@ class QrLoginTests(unittest.TestCase):
         self.assertIsNone(module.settings.PDD_CLIENT_SECRET)
         self.assertIsNone(module.settings.PDD_ACCESS_TOKEN)
 
-    def test_start_qr_login_uses_saved_storage_state_and_captures_screenshot(self):
+    def test_start_password_login_uses_saved_storage_state_and_opens_workbench(self):
         os.environ["PDD_CLIENT_ID"] = ""
         os.environ["PDD_CLIENT_SECRET"] = ""
         os.environ["PDD_ACCESS_TOKEN"] = ""
@@ -64,15 +65,27 @@ class QrLoginTests(unittest.TestCase):
 
             class FakePage:
                 def __init__(self):
+                    self.url = "https://example.com/workbench"
                     self.goto_calls = []
-                    self.screenshot_calls = []
+
+                def is_closed(self):
+                    return False
 
                 async def goto(self, url, wait_until=None):
                     self.goto_calls.append((url, wait_until))
 
-                async def screenshot(self, path=None, full_page=None):
-                    self.screenshot_calls.append((path, full_page))
-                    Path(path).write_bytes(b"png")
+                def locator(self, selector):
+                    class FakeLocator:
+                        async def count(self):
+                            return 0
+
+                    return FakeLocator()
+
+                async def wait_for_selector(self, selector, timeout=None, state=None):
+                    return None
+
+                async def wait_for_timeout(self, timeout):
+                    return None
 
             class FakeContext:
                 def __init__(self):
@@ -80,6 +93,16 @@ class QrLoginTests(unittest.TestCase):
 
                 async def new_page(self):
                     return self.page
+
+                async def cookies(self):
+                    return [{"name": "PASS_ID", "domain": ".pinduoduo.com"}]
+
+                async def storage_state(self, path=None):
+                    Path(path).write_text(
+                        json.dumps({"cookies": [{"name": "PASS_ID", "domain": ".pinduoduo.com"}]}),
+                        encoding="utf-8",
+                    )
+                    return {}
 
             class FakeBrowser:
                 def __init__(self):
@@ -117,29 +140,34 @@ class QrLoginTests(unittest.TestCase):
             fake_playwright = FakePlaywright()
 
             with patch.object(module, "async_playwright", lambda: FakeAsyncPlaywright(fake_playwright)):
-                result_path = asyncio.run(bot.start_qr_login())
+                result = asyncio.run(bot.start_password_login())
 
-            self.assertEqual(result_path, str(Path(tmp_dir) / "pdd_login.png"))
+            self.assertTrue(result["is_logged_in"])
+            self.assertEqual(result["login_url"], "https://example.com/workbench")
             self.assertEqual(fake_playwright.browser.kwargs["storage_state"], str(storage_state_path))
             self.assertEqual(
                 fake_playwright.browser.context.page.goto_calls,
-                [("https://example.com/workbench", "networkidle")],
-            )
-            self.assertEqual(
-                fake_playwright.browser.context.page.screenshot_calls,
-                [(str(Path(tmp_dir) / "pdd_login.png"), True)],
+                [("https://example.com/workbench", "domcontentloaded")],
             )
 
-    def test_start_login_route_returns_screenshot_url(self):
+    def test_start_login_route_returns_manual_login_status(self):
         os.environ["PDD_CLIENT_ID"] = ""
         os.environ["PDD_CLIENT_SECRET"] = ""
         os.environ["PDD_ACCESS_TOKEN"] = ""
+        os.environ["BROWSER_CONTROL_URL"] = "http://localhost:6080/vnc.html"
 
         route_module = load_module("routes.system_routes")
 
         class FakeBot:
-            async def start_qr_login(self):
-                return "/tmp/pdd_login.png"
+            async def start_password_login(self):
+                return {
+                    "is_logged_in": False,
+                    "status": "waiting_verification",
+                    "verification_required": True,
+                    "credentials_filled": True,
+                    "message": "请在浏览器中完成滑块/短信等验证",
+                    "login_url": "https://mms.pinduoduo.com/",
+                }
 
         sys.modules["playwright_bot"] = types.SimpleNamespace(playwright_bot=FakeBot())
         try:
@@ -147,10 +175,12 @@ class QrLoginTests(unittest.TestCase):
         finally:
             sys.modules.pop("playwright_bot", None)
 
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["screenshot_url"], "/api/v1/system/pdd-login/screenshot")
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["status"], "waiting_verification")
+        self.assertEqual(result["data"]["auth_info_url"], "/api/v1/system/pdd-auth/page")
+        self.assertEqual(result["data"]["browser_control_url"], "http://localhost:6080/vnc.html")
 
-    def test_login_status_route_returns_logged_in_state(self):
+    def test_login_status_route_returns_logged_in_state_and_closes_browser(self):
         os.environ["PDD_CLIENT_ID"] = ""
         os.environ["PDD_CLIENT_SECRET"] = ""
         os.environ["PDD_ACCESS_TOKEN"] = ""
@@ -158,8 +188,57 @@ class QrLoginTests(unittest.TestCase):
         route_module = load_module("routes.system_routes")
 
         class FakeBot:
+            def __init__(self):
+                self.page = object()
+                self.closed = False
+
             async def check_login_status(self):
                 return True
+
+            async def continue_password_login(self):
+                return None
+
+            async def has_verification_challenge(self):
+                return False
+
+            def get_auth_info(self):
+                return {"is_authorized": True, "status": "authorized", "message": "已授权"}
+
+            async def close(self):
+                self.closed = True
+                self.page = None
+
+        fake_bot = FakeBot()
+        sys.modules["playwright_bot"] = types.SimpleNamespace(playwright_bot=fake_bot)
+        try:
+            result = asyncio.run(route_module.get_pdd_login_status())
+        finally:
+            sys.modules.pop("playwright_bot", None)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["data"]["is_logged_in"])
+        self.assertEqual(result["data"]["status"], "logged_in")
+        self.assertTrue(fake_bot.closed)
+
+    def test_login_status_route_does_not_trust_saved_auth_info(self):
+        os.environ["PDD_CLIENT_ID"] = ""
+        os.environ["PDD_CLIENT_SECRET"] = ""
+        os.environ["PDD_ACCESS_TOKEN"] = ""
+
+        route_module = load_module("routes.system_routes")
+
+        class FakeBot:
+            page = None
+            password_login_filled = False
+
+            async def check_login_status(self):
+                return False
+
+            async def continue_password_login(self):
+                return None
+
+            def get_auth_info(self):
+                return {"is_authorized": True, "status": "authorized", "message": "已授权"}
 
         sys.modules["playwright_bot"] = types.SimpleNamespace(playwright_bot=FakeBot())
         try:
@@ -167,8 +246,73 @@ class QrLoginTests(unittest.TestCase):
         finally:
             sys.modules.pop("playwright_bot", None)
 
-        self.assertTrue(result["logged_in"])
-        self.assertEqual(result["message"], "已登录")
+        self.assertTrue(result["success"])
+        self.assertFalse(result["data"]["is_logged_in"])
+        self.assertEqual(result["data"]["status"], "waiting_login")
+
+    def test_get_auth_info_reads_saved_session_without_cookie_values(self):
+        os.environ["PDD_CLIENT_ID"] = ""
+        os.environ["PDD_CLIENT_SECRET"] = ""
+        os.environ["PDD_ACCESS_TOKEN"] = ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["PDD_DATA_DIR"] = tmp_dir
+            module = load_module("playwright_bot")
+            bot = module.PlaywrightBot()
+            secret_value = "secret-cookie-value"
+            bot.storage_state_path.write_text(
+                json.dumps({
+                    "cookies": [
+                        {
+                            "name": "PASS_ID",
+                            "value": secret_value,
+                            "domain": ".pinduoduo.com",
+                            "path": "/",
+                            "expires": 1893456000,
+                        }
+                    ],
+                    "origins": [],
+                }),
+                encoding="utf-8",
+            )
+
+            info = bot.get_auth_info()
+
+        self.assertTrue(info["is_authorized"])
+        self.assertEqual(info["status"], "authorized")
+        self.assertEqual(info["cookie_names"], ["PASS_ID"])
+        self.assertNotIn(secret_value, str(info))
+
+    def test_get_auth_info_rejects_expired_auth_cookie(self):
+        os.environ["PDD_CLIENT_ID"] = ""
+        os.environ["PDD_CLIENT_SECRET"] = ""
+        os.environ["PDD_ACCESS_TOKEN"] = ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["PDD_DATA_DIR"] = tmp_dir
+            module = load_module("playwright_bot")
+            bot = module.PlaywrightBot()
+            bot.storage_state_path.write_text(
+                json.dumps({
+                    "cookies": [
+                        {
+                            "name": "PASS_ID",
+                            "value": "expired",
+                            "domain": ".pinduoduo.com",
+                            "path": "/",
+                            "expires": 1,
+                        }
+                    ],
+                    "origins": [],
+                }),
+                encoding="utf-8",
+            )
+
+            info = bot.get_auth_info()
+
+        self.assertFalse(info["is_authorized"])
+        self.assertEqual(info["status"], "invalid")
+        self.assertEqual(info["expired_auth_cookie_names"], ["PASS_ID"])
 
     def test_close_clears_browser_state_even_if_one_resource_fails(self):
         os.environ["PDD_CLIENT_ID"] = ""
@@ -226,8 +370,8 @@ class QrLoginTests(unittest.TestCase):
         class FakePage:
             url = "https://mms.pinduoduo.com/"
 
-            def __init__(self):
-                self.screenshot_calls = []
+            def is_closed(self):
+                return False
 
             def locator(self, selector):
                 counts = {
@@ -243,15 +387,10 @@ class QrLoginTests(unittest.TestCase):
                 }
                 return FakeLocator(counts.get(selector, 0))
 
-            async def screenshot(self, path=None, full_page=None):
-                self.screenshot_calls.append((path, full_page))
-                Path(path).write_bytes(b"png")
-
         bot.page = FakePage()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             bot.data_dir = Path(tmp_dir)
-            bot.login_screenshot_path = bot.data_dir / "pdd_login.png"
             logged_in = asyncio.run(bot.check_login_status())
 
         self.assertFalse(logged_in)

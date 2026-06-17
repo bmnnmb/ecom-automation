@@ -2,143 +2,72 @@
 
 ## 功能说明
 
-在系统管理页面实现了拼多多店铺扫码授权功能，用户可以通过扫码方式快速完成拼多多商家账号的授权绑定。
+系统管理页的拼多多授权使用账号密码方案：后端打开拼多多商家后台，从 `.env` 读取 `PDD_USERNAME` / `PDD_PASSWORD` 自动填入并提交；如出现滑块、短信或扫码确认，由用户在可见浏览器中手动完成。后端检测到有效登录态后保存 session 并关闭浏览器。
+
+Docker Compose 部署时，容器内浏览器通过 noVNC 暴露到本机 `http://localhost:6080/vnc.html`，授权弹窗会显示“打开远程浏览器”入口。
 
 ## 使用步骤
 
 ### 1. 访问系统管理页面
+
 打开浏览器访问：`http://localhost:5173/system`
 
-### 2. 进入店铺设置
-点击"店铺设置"标签，在右侧找到"平台授权"卡片
+### 2. 发起拼多多授权
 
-### 3. 发起拼多多授权
-- 在平台授权列表中找到"拼多多"
-- 点击"授权"按钮
-- 弹出授权弹窗
+- 进入“店铺设置”
+- 在“平台授权”卡片中找到“拼多多”
+- 点击“授权”
+- 在弹窗中点击“账号密码授权”
 
-### 4. 扫码登录流程
+### 3. 完成验证
 
-#### 步骤1：发起授权
-- 点击"开始授权"按钮
-- 系统调用后端服务生成二维码
+- 后端会自动填入 `.env` 中的账号密码并点击登录
+- 如出现滑块、短信或扫码确认，由用户手动处理
+- 前端每 2 秒检测一次登录状态
+- 检测成功后后端保存 `pdd_storage_state.json` 并关闭浏览器
 
-#### 步骤2：扫码登录
-- 使用**拼多多商家版APP**扫描二维码
-- 在APP中确认登录
-- 系统自动轮询登录状态（每2秒检测一次）
+### 4. 查看授权信息
 
-#### 步骤3：完成授权
-- 扫码成功后自动跳转到完成页面
-- 平台授权状态更新为"已授权"
-- 弹窗自动关闭
+- 平台授权列表中点击拼多多的“查看”
+- 或访问：`/api/v1/system/pdd-auth/page`
+
+授权信息只展示会话文件路径、更新时间、Cookie 名称、域名和过期时间，不展示 Cookie 值。
 
 ### 5. 解绑授权
-如需解绑拼多多授权：
-- 点击"解绑"按钮
-- 确认解绑操作
-- 授权状态恢复为"未授权"
 
-## 技术实现
+- 点击“解绑”
+- 确认后后端关闭浏览器并删除已保存的 session 文件
 
-### 前端组件
-- `PddAuthModal.jsx` - 授权弹窗组件，包含三步流程
-- `System/index.jsx` - 系统管理主页面，集成授权按钮
+## 后端接口
 
-### 后端接口
-- `POST /api/v1/system/pdd-login/start` - 发起扫码登录
-- `GET /api/v1/system/pdd-login/screenshot` - 获取二维码截图
-- `GET /api/v1/system/pdd-login/status` - 查询登录状态
-- `POST /api/v1/system/pdd-login/cancel` - 取消登录
-
-### 授权原理
-1. 后端使用 Playwright 启动浏览器访问拼多多商家工作台
-2. 截取二维码页面保存为图片
-3. 前端展示二维码供用户扫描
-4. 轮询检测页面 DOM 元素判断是否登录成功
-5. 登录成功后保存浏览器会话到 `data/pdd_storage_state.json`
-6. 后续请求复用已保存的会话，无需重复登录
+- `POST /api/v1/system/pdd-login/start` - 发起账号密码授权登录
+- `GET /api/v1/system/pdd-login/status` - 查询账号密码授权登录状态
+- `POST /api/v1/system/pdd-login/cancel` - 取消账号密码授权登录
+- `POST /api/v1/system/pdd-login/password` - 兼容入口，同样发起账号密码授权登录
+- `GET /api/v1/system/pdd-auth/info` - 查询授权信息 JSON
+- `GET /api/v1/system/pdd-auth/page` - 授权信息查看页
+- `POST /api/v1/system/pdd-logout` - 解绑授权
 
 ## 注意事项
 
-### 1. 服务依赖
-- 确保 `pdd-cs-adapter` 后端服务已启动（端口 8003）
-- 确保 Playwright 浏览器已安装：`playwright install chromium`
-
-### 2. 网络要求
-- 需要稳定的网络连接访问拼多多商家工作台
-- 建议在良好的网络环境下操作
-
-### 3. 超时时间
-- 二维码展示后有 2 分钟的扫码时间
-- 超时后需要重新发起授权
-
-### 4. 会话持久化
-- 授权成功后会话保存在后端 `data/pdd_storage_state.json`
-- 容器重启后会话仍然有效，无需重新授权
-- 建议挂载 volume 持久化 `data` 目录
-
-### 5. 安全建议
-- 授权信息敏感，请妥善保管
-- 定期检查授权状态
-- 发现异常及时解绑重新授权
+- `pdd-cs-adapter` 必须已启动，默认端口 `8003`
+- `.env` 必须配置 `PDD_USERNAME` 和 `PDD_PASSWORD`
+- Playwright Chromium 必须已安装
+- 后端运行环境必须能打开用户可见的浏览器窗口
+- 如果服务跑在 Docker/Xvfb 内，浏览器可能只打开在容器虚拟显示中，用户桌面看不到
+- 授权成功后的会话保存在后端 `PDD_DATA_DIR/pdd_storage_state.json`
+- 建议持久化 `PDD_DATA_DIR`，避免容器重启后丢失 session
 
 ## 常见问题
 
-### Q1: 二维码加载失败
-**原因：** 后端服务未启动或网络问题  
-**解决：** 
-- 检查后端服务状态：`curl http://localhost:8003/api/v1/system/status`
-- 查看后端日志排查问题
+### Q1: 浏览器启动失败
 
-### Q2: 扫码后一直显示"等待扫码确认"
-**原因：** 
-- 未在拼多多APP中确认登录
-- 页面结构变化导致检测失败
+检查 Playwright Chromium 是否安装，并确认后端环境可以打开可见浏览器。
 
-**解决：**
-- 确保在APP中点击"确认登录"
-- 刷新二维码重试
-- 检查后端日志查看具体错误
+### Q2: 一直等待登录完成
+
+确认用户是否已在打开的拼多多商家后台页面完成滑块、短信或扫码确认；如果登录窗口被关闭且未保存有效 Cookie，需要重新授权。
 
 ### Q3: 授权成功后无法使用自动化功能
-**原因：** 会话文件未正确保存
 
-**解决：**
-- 检查 `data/pdd_storage_state.json` 是否存在
-- 重新授权
-- 查看后端日志确认会话保存情况
-
-### Q4: 容器重启后需要重新授权
-**原因：** `data` 目录未持久化
-
-**解决：**
-在 `docker-compose.yml` 中添加 volume：
-```yaml
-volumes:
-  - ./data:/app/data
-```
-
-## 开发扩展
-
-### 添加其他平台授权
-参考拼多多授权实现，可以添加抖音、快手等其他平台的授权功能：
-
-1. 创建对应的授权弹窗组件（如 `DouyinAuthModal.jsx`）
-2. 在后端实现对应平台的登录接口
-3. 在 `System/index.jsx` 中添加处理逻辑
-4. 更新 `platformStatus` 状态
-
-### API 数据持久化
-当前授权状态保存在前端 state 中，刷新后会丢失。可以：
-
-1. 在后端添加平台授权状态查询接口
-2. 页面加载时从后端获取授权状态
-3. 授权/解绑操作同步到后端数据库
-
-## 相关文档
-
-- [拼多多开放平台文档](https://open.pinduoduo.com/)
-- [Playwright 文档](https://playwright.dev/python/)
-- [后端服务 README](../../../services/pdd-cs-adapter/README.md)
-- [测试指南](../../../services/pdd-cs-adapter/TEST_README.md)
+检查 `/api/v1/system/pdd-auth/page`，确认会话文件存在且检测到有效登录 Cookie。

@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Tabs, 
-  Card, 
-  Form, 
-  Input, 
-  Button, 
-  Switch, 
-  Table, 
-  Tag, 
-  Space, 
-  Select, 
-  DatePicker, 
-  Upload, 
+import {
+  Tabs,
+  Card,
+  Form,
+  Input,
+  Button,
+  Switch,
+  Table,
+  Tag,
+  Space,
+  Select,
+  DatePicker,
+  Upload,
   message,
   Divider,
+  Descriptions,
   List,
   Avatar,
   Badge,
@@ -23,10 +24,10 @@ import {
   Modal,
   Tooltip
 } from 'antd';
-import { 
-  ShopOutlined, 
-  TeamOutlined, 
-  HistoryOutlined, 
+import {
+  ShopOutlined,
+  TeamOutlined,
+  HistoryOutlined,
   BellOutlined,
   UploadOutlined,
   PlusOutlined,
@@ -45,6 +46,8 @@ import {
   ExclamationCircleOutlined,
   SyncOutlined
 } from '@ant-design/icons';
+import DouyinAuthModal from './DouyinAuthModal';
+import PddAuthModal from './PddAuthModal';
 import './System.css';
 
 const { TabPane } = Tabs;
@@ -103,6 +106,30 @@ export default function System() {
   const [logs, setLogs] = useState(mockLogs);
   const [loading, setLoading] = useState(false);
 
+  // 授权弹窗状态
+  const [douyinModalVisible, setDouyinModalVisible] = useState(false);
+  const [pddModalVisible, setPddModalVisible] = useState(false);
+  const [pddAuthInfoVisible, setPddAuthInfoVisible] = useState(false);
+  const [pddAuthInfo, setPddAuthInfo] = useState(null);
+  const [pddAuthInfoLoading, setPddAuthInfoLoading] = useState(false);
+
+  const loadPddAuthInfo = async () => {
+    setPddAuthInfoLoading(true);
+    try {
+      const response = await fetch('/api/v1/system/pdd-auth/info');
+      const result = await response.json();
+      if (result.success && result.data) {
+        setPddAuthInfo(result.data);
+        return result.data;
+      }
+    } catch (error) {
+      console.error('获取拼多多授权信息失败:', error);
+    } finally {
+      setPddAuthInfoLoading(false);
+    }
+    return null;
+  };
+
   // 从 API 加载数据
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +154,10 @@ export default function System() {
     }
     loadData();
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    loadPddAuthInfo();
   }, []);
 
   // 店铺设置表单提交
@@ -215,20 +246,91 @@ export default function System() {
 
   // 切换通知设置
   const toggleNotification = (id) => {
-    setNotificationSettings(prev => 
-      prev.map(item => 
+    setNotificationSettings(prev =>
+      prev.map(item =>
         item.id === id ? { ...item, enabled: !item.enabled } : item
       )
     );
   };
 
   // 平台授权状态
+  const pddIsAuthorized = pddAuthInfo?.is_authorized === true;
   const platformStatus = [
-    { name: '抖音', status: '已授权', color: 'green', icon: '🎵' },
-    { name: '拼多多', status: '未授权', color: 'red', icon: '🛒' },
-    { name: '闲鱼', status: '已授权', color: 'green', icon: '🐟' },
-    { name: '快手', status: '授权中', color: 'orange', icon: '⚡' },
+    { name: '抖音', status: '已授权', color: 'green', icon: '🎵', key: 'douyin' },
+    { name: '拼多多', status: pddIsAuthorized ? '已授权' : '未授权', color: pddIsAuthorized ? 'green' : 'red', icon: '🛒', key: 'pdd' },
+    { name: '闲鱼', status: '已授权', color: 'green', icon: '🐟', key: 'xianyu' },
+    { name: '快手', status: '授权中', color: 'orange', icon: '⚡', key: 'kuaishou' },
   ];
+
+  const showPddAuthInfo = async () => {
+    await loadPddAuthInfo();
+    setPddAuthInfoVisible(true);
+  };
+
+  // 处理平台授权按钮点击
+  const handlePlatformAuth = (platformKey, isAuthorized) => {
+    switch (platformKey) {
+      case 'douyin':
+        if (isAuthorized) {
+          Modal.confirm({
+            title: '确认解绑',
+            content: '确定要解绑抖音授权吗？',
+            onOk: () => {
+              message.success('抖音授权已解绑');
+            }
+          });
+        } else {
+          setDouyinModalVisible(true);
+        }
+        break;
+      case 'pdd':
+        if (isAuthorized) {
+          Modal.confirm({
+            title: '确认解绑',
+            content: '确定要解绑拼多多授权吗？',
+            onOk: async () => {
+              const response = await fetch('/api/v1/system/pdd-logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              });
+              const result = await response.json().catch(() => ({}));
+              if (!response.ok || result.success === false) {
+                throw new Error(result.detail || result.message || '拼多多授权解绑失败');
+              }
+              message.success(result.message || '拼多多授权已解绑');
+              loadPddAuthInfo();
+            }
+          });
+        } else {
+          setPddModalVisible(true);
+        }
+        break;
+      case 'xianyu':
+      case 'kuaishou':
+        message.info(`${platformKey === 'xianyu' ? '闲鱼' : '快手'}授权功能开发中...`);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // 授权成功回调
+  const handleAuthSuccess = (platform) => {
+    message.success(`${platform}授权成功！`);
+    if (platform === '拼多多') {
+      loadPddAuthInfo();
+    }
+  };
+
+  const formatAuthValue = (value) => {
+    if (Array.isArray(value)) {
+      return value.length ? value.join(', ') : '-';
+    }
+    if (value === null || value === undefined || value === '') {
+      return '-';
+    }
+    return String(value);
+  };
 
   return (
     <div className="system-page">
@@ -355,27 +457,45 @@ export default function System() {
                   >
                     <List
                       dataSource={platformStatus}
-                      renderItem={item => (
-                        <List.Item
-                          actions={[
-                            <Button 
-                              type="link" 
+                      renderItem={item => {
+                        const isAuthorized = item.status === '已授权';
+                        const actions = [
+                          <Button
+                            key="auth"
+                            type="link"
+                            size="small"
+                            style={{ color: isAuthorized ? '#ff4d4f' : '#165DFF' }}
+                            onClick={() => handlePlatformAuth(item.key, isAuthorized)}
+                          >
+                            {isAuthorized ? '解绑' : '授权'}
+                          </Button>
+                        ];
+
+                        if (item.key === 'pdd') {
+                          actions.unshift(
+                            <Button
+                              key="info"
+                              type="link"
                               size="small"
-                              style={{ color: item.status === '已授权' ? '#ff4d4f' : '#165DFF' }}
+                              onClick={showPddAuthInfo}
                             >
-                              {item.status === '已授权' ? '解绑' : '授权'}
+                              查看
                             </Button>
-                          ]}
-                        >
-                          <List.Item.Meta
-                            avatar={<span style={{ fontSize: 24 }}>{item.icon}</span>}
-                            title={item.name}
-                            description={
-                              <Tag color={item.color}>{item.status}</Tag>
-                            }
-                          />
-                        </List.Item>
-                      )}
+                          );
+                        }
+
+                        return (
+                          <List.Item actions={actions}>
+                            <List.Item.Meta
+                              avatar={<span style={{ fontSize: 24 }}>{item.icon}</span>}
+                              title={item.name}
+                              description={
+                                <Tag color={item.color}>{item.status}</Tag>
+                              }
+                            />
+                          </List.Item>
+                        );
+                      }}
                     />
                   </Card>
                   
@@ -663,6 +783,63 @@ export default function System() {
         </Tabs>
       </Card>
 
+      {/* 拼多多授权信息 */}
+      <Modal
+        title="拼多多授权信息"
+        open={pddAuthInfoVisible}
+        onCancel={() => setPddAuthInfoVisible(false)}
+        footer={[
+          <Button key="page" href="/api/v1/system/pdd-auth/page" target="_blank">
+            打开后端页面
+          </Button>,
+          <Button key="refresh" icon={<SyncOutlined />} onClick={loadPddAuthInfo} loading={pddAuthInfoLoading}>
+            刷新
+          </Button>,
+          <Button key="close" type="primary" onClick={() => setPddAuthInfoVisible(false)}>
+            关闭
+          </Button>,
+        ]}
+        width={760}
+      >
+        {pddAuthInfoLoading && !pddAuthInfo ? (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            <SyncOutlined spin style={{ fontSize: 24, color: '#165DFF' }} />
+          </div>
+        ) : (
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="授权状态">
+              <Tag color={pddAuthInfo?.is_authorized ? 'green' : 'red'}>
+                {formatAuthValue(pddAuthInfo?.message)}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="状态码">
+              {formatAuthValue(pddAuthInfo?.status)}
+            </Descriptions.Item>
+            <Descriptions.Item label="会话文件">
+              {formatAuthValue(pddAuthInfo?.storage_state_path)}
+            </Descriptions.Item>
+            <Descriptions.Item label="文件大小">
+              {formatAuthValue(pddAuthInfo?.storage_size)} bytes
+            </Descriptions.Item>
+            <Descriptions.Item label="更新时间">
+              {formatAuthValue(pddAuthInfo?.updated_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Cookie 数量">
+              {formatAuthValue(pddAuthInfo?.cookie_count)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Cookie 名称">
+              {formatAuthValue(pddAuthInfo?.cookie_names)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Cookie 域名">
+              {formatAuthValue(pddAuthInfo?.domains)}
+            </Descriptions.Item>
+            <Descriptions.Item label="最近过期时间">
+              {formatAuthValue(pddAuthInfo?.expires_at)}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
+
       {/* 角色编辑弹窗 */}
       <Modal
         title="编辑角色"
@@ -718,6 +895,20 @@ export default function System() {
           </Form>
         )}
       </Modal>
+
+      {/* 抖音授权弹窗 */}
+      <DouyinAuthModal
+        visible={douyinModalVisible}
+        onCancel={() => setDouyinModalVisible(false)}
+        onSuccess={() => handleAuthSuccess('抖音')}
+      />
+
+      {/* 拼多多授权弹窗 */}
+      <PddAuthModal
+        visible={pddModalVisible}
+        onCancel={() => setPddModalVisible(false)}
+        onSuccess={() => handleAuthSuccess('拼多多')}
+      />
     </div>
   );
 }

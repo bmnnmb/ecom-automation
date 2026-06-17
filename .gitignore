@@ -40,9 +40,14 @@ env/
 
 # Playwright/浏览器自动化数据目录
 services/pdd-cs-adapter/data/
+services/pdd-cs-adapter/.cache/
 **/storage_state.json
 **/pdd_storage_state.json
 **/douyin_storage_state.json
+pdd_login*.png
+douyin_login*.png
+services/pdd-cs-adapter/save_session*.py
+services/pdd-cs-adapter/test_local_browser.py
 
 # Logs
 *.log

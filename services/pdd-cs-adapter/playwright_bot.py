@@ -3,8 +3,10 @@
 使用Playwright处理拼多多工作台
 """
 import asyncio
+import json
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
@@ -26,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 class PlaywrightBot:
     """Playwright自动化机器人"""
-    
+
     def __init__(self):
         self.playwright = None
         self.browser: Optional[Browser] = None
@@ -37,7 +39,9 @@ class PlaywrightBot:
         self.message_handler: Optional[MessageHandler] = None
         self.data_dir = Path(os.getenv("PDD_DATA_DIR", settings.PDD_DATA_DIR))
         self.storage_state_path = self.data_dir / "pdd_storage_state.json"
-        self.login_screenshot_path = self.data_dir / "pdd_login.png"
+        self.password_login_pending = False
+        self.password_login_submitted = False
+        self.password_login_filled = False
 
     def _page_is_closed(self) -> bool:
         """检查页面是否已关闭"""
@@ -47,12 +51,26 @@ class PlaywrightBot:
             return True
 
     @staticmethod
-    def _is_target_closed_error(error: Exception) -> bool:
-        """判断是否为目标已关闭错误"""
-        return (
-            error.__class__.__name__ == "TargetClosedError"
-            or "has been closed" in str(error)
-        )
+    def _cookie_is_unexpired(cookie: Dict[str, Any]) -> bool:
+        """Playwright session cookie may have no positive expires value."""
+        expires = cookie.get("expires")
+        if isinstance(expires, (int, float)) and expires > 0:
+            return expires > datetime.now().timestamp()
+        return True
+
+    @classmethod
+    def _has_auth_cookies(cls, cookies: List[Dict[str, Any]], current_url: str = "") -> bool:
+        """基于关键 cookie 判断是否已有登录态"""
+        valid_cookies = [cookie for cookie in cookies if cls._cookie_is_unexpired(cookie)]
+        cookie_names = {cookie.get("name") for cookie in valid_cookies}
+        if "PASS_ID" in cookie_names:
+            return True
+
+        login_url_markers = ("login", "passport")
+        if "mms_sid" in cookie_names and current_url:
+            return all(marker not in current_url.lower() for marker in login_url_markers)
+
+        return False
 
     async def _has_visible_locator(self, selector: str) -> bool:
         """检查指定选择器是否有可见元素
@@ -77,7 +95,7 @@ class PlaywrightBot:
         return False
 
     async def _dismiss_browser_warning(self) -> None:
-        """关闭拼多多的浏览器版本提示弹窗，避免遮挡二维码"""
+        """关闭拼多多的浏览器版本提示弹窗"""
         if not self.page or self._page_is_closed():
             return
 
@@ -94,10 +112,192 @@ class PlaywrightBot:
             except Exception:
                 continue
 
+    async def _first_visible_locator(self, selectors: List[str], timeout: int = 500):
+        """返回第一项可见的 locator"""
+        if not self.page:
+            return None
+
+        for selector in selectors:
+            try:
+                locator = self.page.locator(selector)
+                count = await locator.count()
+                for index in range(min(count, 20)):
+                    item = locator.nth(index)
+                    if await item.is_visible(timeout=timeout):
+                        return item
+            except Exception:
+                continue
+        return None
+
+    async def _click_first_visible(self, selectors: List[str], timeout: int = 1000) -> bool:
+        locator = await self._first_visible_locator(selectors, timeout=timeout)
+        if not locator:
+            return False
+
+        await locator.click(timeout=timeout)
+        return True
+
+    async def _fill_first_visible(self, selectors: List[str], value: str, field_name: str) -> bool:
+        locator = await self._first_visible_locator(selectors)
+        if not locator:
+            logger.error(f"未找到{field_name}输入框")
+            return False
+
+        await locator.fill(value)
+        logger.info(f"已填入{field_name}")
+        return True
+
+    async def has_verification_challenge(self) -> bool:
+        """检测是否出现滑块/验证码等人工验证"""
+        verification_selectors = [
+            '.geetest_panel',
+            '.geetest_box',
+            '.geetest_slider_button',
+            '.yidun_slider',
+            '.yidun_panel',
+            '[class*="geetest"]',
+            '[class*="captcha"]',
+            '[class*="Captcha"]',
+            '[class*="verify"]',
+            '[class*="Verify"]',
+            '[class*="slider"]',
+            '[class*="Slider"]',
+            'text=拖动滑块',
+            'text=滑块',
+            'text=完成拼图',
+            'text=验证码',
+            'text=安全验证',
+        ]
+        return await self._first_visible_locator(verification_selectors, timeout=300) is not None
+
+    async def _switch_to_password_login(self) -> None:
+        selectors = [
+            'text=账号登录',
+            'text=密码登录',
+            'text=账号密码登录',
+            '[data-testid="password-login"]',
+        ]
+        if await self._click_first_visible(selectors):
+            await self.page.wait_for_timeout(500)
+            logger.info("已切换到账号密码登录")
+
+    async def _accept_login_agreement(self) -> None:
+        checkbox = await self._first_visible_locator([
+            'input[type="checkbox"]',
+            '[class*="checkbox"]',
+            '[class*="agreement"]',
+        ], timeout=300)
+        if not checkbox:
+            return
+
+        try:
+            await checkbox.click(timeout=500)
+            logger.info("已尝试勾选登录协议")
+        except Exception:
+            return
+
+    async def _submit_password_login(self) -> Dict[str, Any]:
+        """填入 .env 账号密码并提交，验证码由用户人工处理"""
+        if not self.page or self._page_is_closed():
+            raise RuntimeError("browser is not started")
+
+        if await self.check_login_status():
+            return {
+                "is_logged_in": True,
+                "status": "logged_in",
+                "verification_required": False,
+                "credentials_filled": self.password_login_filled,
+                "message": "已检测到有效登录态",
+            }
+
+        if not settings.PDD_USERNAME or not settings.PDD_PASSWORD:
+            raise RuntimeError("未配置 PDD_USERNAME 或 PDD_PASSWORD")
+
+        if await self.has_verification_challenge() and not self.password_login_filled:
+            return {
+                "is_logged_in": False,
+                "status": "waiting_verification",
+                "verification_required": True,
+                "credentials_filled": False,
+                "message": "请先在浏览器中完成滑块验证，系统随后会自动填入账号密码",
+            }
+
+        await self._switch_to_password_login()
+
+        username_ok = await self._fill_first_visible([
+            'input[name="username"]',
+            'input[name="mobile"]',
+            'input[name="account"]',
+            'input[placeholder*="手机号"]',
+            'input[placeholder*="账号"]',
+            'input[placeholder*="用户名"]',
+            'input[autocomplete="username"]',
+            'input[type="tel"]',
+            'input[type="text"]',
+        ], settings.PDD_USERNAME, "账号")
+        password_ok = await self._fill_first_visible([
+            'input[name="password"]',
+            'input[type="password"]',
+            'input[placeholder*="密码"]',
+            'input[autocomplete="current-password"]',
+        ], settings.PDD_PASSWORD, "密码")
+        self.password_login_filled = username_ok and password_ok
+
+        if not self.password_login_filled:
+            return {
+                "is_logged_in": False,
+                "status": "waiting_login_form",
+                "verification_required": await self.has_verification_challenge(),
+                "credentials_filled": False,
+                "message": "未找到账号密码输入框，请确认登录页已正常显示",
+            }
+
+        await self._accept_login_agreement()
+
+        if not await self._click_first_visible([
+            'button[type="submit"]',
+            'button:has-text("登录")',
+            'button:has-text("立即登录")',
+            'button:has-text("登 录")',
+            '[class*="login-button"]',
+            '[class*="submit-btn"]',
+        ], timeout=3000):
+            return {
+                "is_logged_in": False,
+                "status": "waiting_login_form",
+                "verification_required": await self.has_verification_challenge(),
+                "credentials_filled": True,
+                "message": "未找到登录按钮，请在浏览器中手动点击登录",
+            }
+
+        self.password_login_submitted = True
+        logger.info("已提交拼多多账号密码登录")
+        await self.page.wait_for_timeout(1000)
+
+        if await self.check_login_status():
+            return {
+                "is_logged_in": True,
+                "status": "logged_in",
+                "verification_required": False,
+                "credentials_filled": True,
+                "message": "账号密码登录成功，会话已保存",
+            }
+
+        verification_required = await self.has_verification_challenge()
+        return {
+            "is_logged_in": False,
+            "status": "waiting_verification" if verification_required else "waiting_login",
+            "verification_required": verification_required,
+            "credentials_filled": True,
+            "message": "请在浏览器中完成滑块/短信等验证" if verification_required else "已提交账号密码，等待登录完成",
+        }
+
     async def start(self, headless: Optional[bool] = None):
         """启动浏览器"""
-        if self.page:
+        if self.page and not self._page_is_closed():
             return
+        if self.page and self._page_is_closed():
+            await self.close()
 
         try:
             launch_headless = settings.BROWSER_HEADLESS if headless is None else headless
@@ -119,7 +319,40 @@ class PlaywrightBot:
         except Exception as e:
             logger.error(f"浏览器启动失败: {e}")
             raise
-    
+
+    async def start_password_login(self) -> Dict[str, Any]:
+        """打开可见浏览器并用 .env 中的账号密码发起登录"""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        if self.page and (self.headless is not False or self._page_is_closed()):
+            await self.close()
+        if not self.page:
+            await self.start(headless=False)
+
+        try:
+            await self.page.goto(settings.PDD_WORKBENCH_URL, wait_until='domcontentloaded')
+            await self._dismiss_browser_warning()
+            self.password_login_pending = True
+            self.password_login_submitted = False
+            self.password_login_filled = False
+            result = await self._submit_password_login()
+            result["login_url"] = getattr(self.page, "url", settings.PDD_WORKBENCH_URL)
+            logger.info(f"拼多多账号密码登录已发起: {result['status']}")
+            return result
+        except Exception:
+            await self.close()
+            raise
+
+    async def continue_password_login(self) -> Optional[Dict[str, Any]]:
+        """轮询阶段继续未完成的账号密码登录流程"""
+        if not self.password_login_pending or self.password_login_submitted:
+            return None
+        if not self.page or self._page_is_closed():
+            return None
+
+        result = await self._submit_password_login()
+        result["login_url"] = getattr(self.page, "url", settings.PDD_WORKBENCH_URL)
+        return result
+
     async def close(self):
         """关闭浏览器"""
         close_errors = []
@@ -151,58 +384,47 @@ class PlaywrightBot:
         self.playwright = None
         self.is_logged_in = False
         self.headless = None
+        self.password_login_pending = False
+        self.password_login_submitted = False
+        self.password_login_filled = False
 
         if close_errors:
             logger.error(f"关闭浏览器时出错: {close_errors[0]}")
         else:
             logger.info("浏览器已关闭")
 
-    async def start_qr_login(self) -> str:
-        """启动二维码登录并返回截图路径"""
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        if self.page and (self.headless is not False or self._page_is_closed()):
-            await self.close()
-        if not self.page:
-            await self.start(headless=False)
-
-        try:
-            await self.page.goto(settings.PDD_WORKBENCH_URL, wait_until='networkidle')
-            await self._dismiss_browser_warning()
-        except Exception as e:
-            if not self._is_target_closed_error(e):
-                # 异常时清理资源
-                await self.close()
-                raise
-            logger.info("检测到拼多多登录浏览器已关闭，重新打开")
-            await self.close()
-            await self.start(headless=False)
-            try:
-                await self.page.goto(settings.PDD_WORKBENCH_URL, wait_until='networkidle')
-                await self._dismiss_browser_warning()
-            except Exception:
-                # 重试失败时清理资源
-                await self.close()
-                raise
-        await self.capture_login_screenshot()
-        return str(self.login_screenshot_path)
-
-    async def capture_login_screenshot(self) -> str:
-        """保存登录页截图"""
-        if not self.page or self._page_is_closed():
-            raise RuntimeError("browser is not started")
-
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        await self.page.screenshot(path=str(self.login_screenshot_path), full_page=True)
-        return str(self.login_screenshot_path)
-
     async def check_login_status(self) -> bool:
-        """检查当前是否已登录工作台"""
-        if not self.page:
+        """检查当前是否已登录工作台（基于 cookies 检测，不依赖页面元素）"""
+        if not self.page and not self.context:
             return False
         if self._page_is_closed():
+            try:
+                await self.save_storage_state()
+                auth_info = self.get_auth_info()
+                if auth_info.get("has_auth_cookies"):
+                    self.is_logged_in = True
+                    return True
+            except Exception as e:
+                logger.warning(f"页面关闭后保存会话失败: {e}")
             await self.close()
             return False
 
+        # 优先检查关键 cookies（参考 pdd_auto 项目的实现）
+        if self.context:
+            try:
+                cookies = await self.context.cookies()
+                current_url = getattr(self.page, "url", "").lower()
+
+                # 如果有关键 cookies 且不在登录页面，判定为已登录
+                if self._has_auth_cookies(cookies, current_url):
+                    logger.info("检测到有效的登录 cookies（PASS_ID 或 mms_sid）")
+                    await self.save_storage_state()
+                    self.is_logged_in = True
+                    return True
+            except Exception as e:
+                logger.warning(f"检查 cookies 时出错: {e}")
+
+        # 降级到页面元素检测（可能被滑块遮罩影响）
         auth_markers = [
             '.user-avatar',
             '[data-testid="user-avatar"]',
@@ -234,12 +456,10 @@ class PlaywrightBot:
         for marker in login_markers:
             try:
                 if await self._has_visible_locator(marker):
-                    await self.capture_login_screenshot()
                     return False
             except Exception:
                 continue
 
-        await self.capture_login_screenshot()
         return False
 
     async def save_storage_state(self) -> None:
@@ -250,189 +470,88 @@ class PlaywrightBot:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         await self.context.storage_state(path=str(self.storage_state_path))
 
-    
-    async def login(self) -> bool:
-        """登录拼多多工作台"""
-        if not self.page:
-            await self.start()
+    def get_auth_info(self) -> Dict[str, Any]:
+        """读取已保存的拼多多授权信息（不返回 cookie 值）"""
+        exists = self.storage_state_path.exists()
+        info: Dict[str, Any] = {
+            "is_authorized": False,
+            "status": "unauthorized",
+            "message": "未授权",
+            "storage_state_path": str(self.storage_state_path),
+            "storage_exists": exists,
+            "storage_size": 0,
+            "updated_at": None,
+            "cookie_count": 0,
+            "cookie_names": [],
+            "domains": [],
+            "expires_at": None,
+            "has_auth_cookies": False,
+            "expired_auth_cookie_names": [],
+        }
+
+        if not exists:
+            return info
+
+        stat = self.storage_state_path.stat()
+        info["storage_size"] = stat.st_size
+        info["updated_at"] = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
 
         try:
-            logger.info("正在访问拼多多工作台...")
-            await self.page.goto(settings.PDD_WORKBENCH_URL, wait_until='networkidle')
+            state = json.loads(self.storage_state_path.read_text(encoding="utf-8"))
+            cookies = state.get("cookies") or []
+            info["cookie_count"] = len(cookies)
+            info["cookie_names"] = sorted(
+                {cookie.get("name") for cookie in cookies if cookie.get("name")}
+            )
+            info["domains"] = sorted(
+                {cookie.get("domain") for cookie in cookies if cookie.get("domain")}
+            )
 
-            # 检查是否已经登录
-            if await self.check_login_status():
-                logger.info("已经登录")
-                self.is_logged_in = True
+            expires_values = [
+                cookie.get("expires")
+                for cookie in cookies
+                if isinstance(cookie.get("expires"), (int, float)) and cookie.get("expires", 0) > 0
+            ]
+            if expires_values:
+                info["expires_at"] = datetime.fromtimestamp(min(expires_values)).isoformat(timespec="seconds")
+
+            auth_cookie_names = {"PASS_ID", "mms_sid"}
+            info["expired_auth_cookie_names"] = sorted({
+                cookie.get("name")
+                for cookie in cookies
+                if cookie.get("name") in auth_cookie_names and not self._cookie_is_unexpired(cookie)
+            })
+            info["has_auth_cookies"] = self._has_auth_cookies(cookies)
+            if info["has_auth_cookies"]:
+                info["is_authorized"] = True
+                info["status"] = "authorized"
+                info["message"] = "已授权"
+            elif info["expired_auth_cookie_names"]:
+                info["status"] = "invalid"
+                info["message"] = "授权 cookie 已过期，请重新授权"
+            else:
+                info["status"] = "invalid"
+                info["message"] = "会话文件存在，但未检测到有效登录 cookie"
+        except Exception as e:
+            info["status"] = "invalid"
+            info["message"] = f"授权信息读取失败: {e}"
+
+        return info
+
+    async def login(self) -> bool:
+        """登录拼多多工作台"""
+        try:
+            result = await self.start_password_login()
+            if result.get("is_logged_in"):
                 return True
 
-            # 需要登录
-            if not settings.PDD_USERNAME or not settings.PDD_PASSWORD:
-                logger.error("未配置登录凭据")
-                return False
-
-            # 等待页面加载
-            await asyncio.sleep(2)
-
-            # 尝试切换到账号密码登录（可能不存在该按钮）
-            try:
-                account_login_selectors = [
-                    'text=账号登录',
-                    'text=密码登录',
-                    'text=账号密码登录',
-                    '[data-testid="password-login"]',
-                ]
-                for selector in account_login_selectors:
-                    try:
-                        locator = self.page.locator(selector)
-                        if await locator.count() > 0 and await locator.first.is_visible(timeout=1000):
-                            await locator.first.click()
-                            await asyncio.sleep(1)
-                            logger.info("已切换到账号密码登录")
-                            break
-                    except Exception:
-                        continue
-            except Exception as e:
-                logger.info(f"未找到账号登录切换按钮（可能页面已在密码登录模式）: {e}")
-
-            # 输入用户名密码
-            try:
-                # 尝试多种可能的选择器
-                username_selectors = [
-                    'input[name="username"]',
-                    'input[name="mobile"]',
-                    'input[name="account"]',
-                    'input[placeholder*="手机号"]',
-                    'input[placeholder*="账号"]',
-                    'input[placeholder*="用户名"]',
-                    'input[type="text"]',
-                    'input[type="tel"]',
-                ]
-
-                username_input = None
-                for selector in username_selectors:
-                    try:
-                        locator = self.page.locator(selector)
-                        count = await locator.count()
-                        if count > 0:
-                            # 找到可见的输入框
-                            for i in range(count):
-                                try:
-                                    elem = locator.nth(i)
-                                    if await elem.is_visible(timeout=500):
-                                        username_input = elem
-                                        logger.info(f"找到用户名输入框: {selector}")
-                                        break
-                                except Exception:
-                                    continue
-                        if username_input:
-                            break
-                    except Exception:
-                        continue
-
-                if not username_input:
-                    logger.error("未找到用户名输入框")
-                    await self.page.screenshot(path=str(self.data_dir / "login_error.png"), full_page=True)
-                    return False
-
-                await username_input.fill(settings.PDD_USERNAME)
-                logger.info("已填入用户名")
-
-                # 密码输入框
-                password_selectors = [
-                    'input[name="password"]',
-                    'input[type="password"]',
-                    'input[placeholder*="密码"]',
-                ]
-
-                password_input = None
-                for selector in password_selectors:
-                    try:
-                        locator = self.page.locator(selector)
-                        count = await locator.count()
-                        if count > 0:
-                            for i in range(count):
-                                try:
-                                    elem = locator.nth(i)
-                                    if await elem.is_visible(timeout=500):
-                                        password_input = elem
-                                        logger.info(f"找到密码输入框: {selector}")
-                                        break
-                                except Exception:
-                                    continue
-                        if password_input:
-                            break
-                    except Exception:
-                        continue
-
-                if not password_input:
-                    logger.error("未找到密码输入框")
-                    await self.page.screenshot(path=str(self.data_dir / "login_error.png"), full_page=True)
-                    return False
-
-                await password_input.fill(settings.PDD_PASSWORD)
-                logger.info("已填入密码")
-
-                # 查找登录按钮
-                login_button_selectors = [
-                    'button[type="submit"]',
-                    'button:has-text("登录")',
-                    'button:has-text("立即登录")',
-                    'button:has-text("登 录")',
-                    'text=登录',
-                    '[class*="login-button"]',
-                    '[class*="submit-btn"]',
-                ]
-
-                login_button = None
-                for selector in login_button_selectors:
-                    try:
-                        locator = self.page.locator(selector)
-                        count = await locator.count()
-                        if count > 0:
-                            for i in range(count):
-                                try:
-                                    elem = locator.nth(i)
-                                    if await elem.is_visible(timeout=500):
-                                        login_button = elem
-                                        logger.info(f"找到登录按钮: {selector}")
-                                        break
-                                except Exception:
-                                    continue
-                        if login_button:
-                            break
-                    except Exception:
-                        continue
-
-                if not login_button:
-                    logger.error("未找到登录按钮")
-                    await self.page.screenshot(path=str(self.data_dir / "login_error.png"), full_page=True)
-                    return False
-
-                await login_button.click()
-                logger.info("已点击登录按钮")
-
-                # 等待登录完成（最多等待30秒）
-                for i in range(15):
-                    await asyncio.sleep(2)
-                    if await self.check_login_status():
-                        logger.info("账号密码登录成功")
-                        self.is_logged_in = True
-                        await self.save_storage_state()
-                        return True
-                    logger.info(f"等待登录完成... ({i+1}/15)")
-
-                logger.error("登录超时，可能需要验证码或登录失败")
-                await self.page.screenshot(path=str(self.data_dir / "login_timeout.png"), full_page=True)
-                return False
-
-            except Exception as e:
-                logger.error(f"填写登录表单失败: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-                await self.page.screenshot(path=str(self.data_dir / "login_form_error.png"), full_page=True)
-                return False
-
+            for i in range(60):
+                await asyncio.sleep(2)
+                if await self.check_login_status():
+                    return True
+                await self.continue_password_login()
+                logger.info(f"等待账号密码登录完成... ({i+1}/60)")
+            return False
         except Exception as e:
             logger.error(f"登录失败: {e}")
             import traceback

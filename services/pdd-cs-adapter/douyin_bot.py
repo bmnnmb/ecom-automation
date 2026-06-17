@@ -24,7 +24,7 @@ class DouyinBot:
     """抖音商家后台自动化机器人"""
 
     # 抖音商家后台地址
-    DOUYIN_MERCHANT_URL = "https://fxg.jinritemai.com"
+    DOUYIN_MERCHANT_URL = "https://fxg.jinritemai.com/login/common?channel=zhaoshang"
 
     def __init__(self, data_dir: Optional[str] = None):
         self.playwright = None

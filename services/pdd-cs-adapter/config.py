@@ -1,10 +1,15 @@
 """
 拼多多客服服务配置
 """
+from pathlib import Path
 from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent.parent
 
 
 class Settings(BaseSettings):
@@ -40,6 +45,7 @@ class Settings(BaseSettings):
     
     # Playwright配置
     BROWSER_HEADLESS: bool = Field(default=True, env="BROWSER_HEADLESS")
+    BROWSER_CONTROL_URL: Optional[str] = Field(default=None, env="BROWSER_CONTROL_URL")
     PDD_WORKBENCH_URL: str = Field(
         default="https://mms.pinduoduo.com",
         env="PDD_WORKBENCH_URL"
@@ -92,7 +98,12 @@ class Settings(BaseSettings):
         return value
     
     model_config = SettingsConfigDict(
-        env_file=[".env", ".env.local"],
+        env_file=[
+            str(PROJECT_ROOT / ".env"),
+            str(PROJECT_ROOT / ".env.local"),
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
